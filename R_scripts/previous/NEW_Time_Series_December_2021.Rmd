@@ -1,0 +1,372 @@
+---
+title: "NEW_Time_Series_December_2021"
+author: "Shayna Sura"
+date: "12/9/2021 - December 9, 2021"
+output: pdf_document
+---
+
+## Creating some time series showing scenarios that end up with different final conditions - e.g., high final coral cover vs. high final macroalgal cover vs. high final turf cover...
+
+# Expanded Model
+
+```{r Expanded Model Set up}
+#These were the initial conditions for the basic model when I first ran that...
+# H0<-0.9
+# C0<-0.75
+# M0<-0.1
+
+
+G0<-0.3
+R0<-0.3
+B0<-0.3
+C0<-0.75
+T0<-0.05
+M0<-0.05
+S0 <- 1 - T0 - C0 - M0
+
+P2_state_vars<-c(GG=G0, RR=R0, BB=B0, CC=C0, TT=T0, MM=M0, SS=S0)
+
+#generate a series of times at which you want the ODE solver to output population sizes
+P2_tseq<-seq(0,1000,by=0.1)
+
+#Generate a vector of parameter values
+P2_pars<-c(bc<-0.3,
+           bt<-0.8,      #use the same value as bm from basic model
+           bm<-0.8,      #use the same value as bm from basic model
+           ic<-0.05,
+           it<-0.025,    #need two of these, one for turf and one for macroalgae
+           im<-0.025,    #need two of these, one for turf and one for macroalgae
+           dc<-0.1,
+           r<-1,
+           # gt<-1,       #need two of these, one for turf and one for macroalgae
+           # gm<-1,       #need two of these, one for turf and one for macroalgae
+           gt<-2,       #need two of these, one for turf and one for macroalgae
+           gm<-2,       #need two of these, one for turf and one for macroalgae
+           etaT<-1,     #need two of these, one for turf and one for macroalgae
+           etaM<-1,     #need two of these, one for turf and one for macroalgae
+           alphaT<-0.5,
+           alphaM<-0.5,
+           sigma<-0.6,
+           f<-0.1,
+           gamma<-0)
+
+P2_Model<-function(P2_tseq,P2_state_vars,P2_pars){
+  GG <- P2_state_vars[1]
+  RR <- P2_state_vars[2]
+  BB <- P2_state_vars[3]
+  CC <- P2_state_vars[4]
+  TT <- P2_state_vars[5]
+  MM <- P2_state_vars[6]
+  SS <- 1 - CC - TT - MM
+  
+  bc <- P2_pars[1]
+  bt <- P2_pars[2]
+  bm <- P2_pars[3]
+  ic <- P2_pars[4]
+  it <- P2_pars[5]
+  im <- P2_pars[6]
+  dc <- P2_pars[7]
+  r <- P2_pars[8]
+  gt <- P2_pars[9]
+  gm <- P2_pars[10]
+  etaT <- P2_pars[11]
+  etaM <- P2_pars[12]
+  alphaT <- P2_pars[13]
+  alphaM <- P2_pars[14]
+  sigma <- P2_pars[15]
+  f <- P2_pars[16]
+  gamma <- P2_pars[17]
+  
+  dG_dt <-r*GG*(1 - ((GG+RR+BB) / ((1-sigma) + sigma*CC))) - f*GG
+  dR_dt <-r*RR*(1 - ((GG+RR+BB) / ((1-sigma) + sigma*CC))) - f*RR
+  dB_dt <-r*BB*(1 - ((GG+RR+BB) / ((1-sigma) + sigma*CC))) - f*BB
+  dC_dt <- (ic + bc*CC)*SS*(1-(alphaT*TT+alphaM*MM)) - dc*CC
+  dT_dt <- (it + bt*TT)*(SS) - (gamma*TT) - (((gt*GG*TT) / (gt*etaT*TT+1)) + ((gt*RR*TT)/(gt*etaT*TT+gm*etaM*MM+1)))
+  dM_dt <- (im + bm*MM)*(SS) + (gamma*TT) - (((gm*BB*MM) / (gm*etaM*MM+1)) + ((gm*RR*MM)/(gt*etaT*TT+gm*etaM*MM+1)))
+
+
+  return(list(c(dG <- dG_dt,
+                dR <- dR_dt,
+                dB <- dB_dt,
+                dC <- dC_dt,
+                dT <- dT_dt,
+                dM <- dM_dt)))
+}
+
+P2_output<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, P2_pars)
+P2_output=as.data.frame(P2_output)
+
+#head(P2_output)
+#tail(P2_output)
+
+P2_output$Space= 1 - P2_output$Coral - P2_output$Turf - P2_output$Macroalgae
+P2_output$Herbivores = P2_output$Grazers+P2_output$Generalists+P2_output$Browsers
+P2_output$Algae = P2_output$Turf+P2_output$Macroalgae
+
+
+```
+
+
+
+## Expanded Model Initial Conditions & Parameters
+
+```{r}
+#Generate a vector of parameter values
+hh_pars<-c(bc<-0.3, bt<-0.8,bm<-0.5,      #expansion of current benthic cover
+           ic<-0.05, it<-0.05, im<-0,     #import of propagules
+           dc<-0.1,                       #coral mortality
+           r<-1,                          #herbivore growth rate
+#           gt<-1, gm<-0.5,                #algae mortality - used previously before changing our model equations
+           gt<-2, gm<-1,                #algae mortality
+           etaT<-0, etaM<-1,              #algae handling time
+           alphaT<-0.25, alphaM<-0.5,     #competitive effect on coral
+           sigma<-0.6,                    #relationship between coral & herbivores
+           f<-0.5,                        #fishing pressure
+           gamma<-0.1)                    #transition from turf to macroalgae
+
+```
+
+
+## Scenarios to examine over time
+# Use the initial conditions from our Q1 analyses
+
+```{r}
+
+# General Initial conditions
+G0<-0.3
+R0<-0.3
+B0<-0.3
+C0<-0.75
+T0<-0.1
+M0<-0.0
+S0 <- 1 - T0 - C0 - M0
+
+
+# Initial conditions from Q2
+C0<-0.15
+M0<-0.0
+T0<-0.7
+S0<-1-C0-M0-T0
+#Q2 examines varying initial herbivore abundances
+
+
+## Scenario 1 - Final Turf Cover is High
+#What initial conditions do we want to examine?
+C0<-0.15
+M0<-0.0
+T0<-0.7
+S0<-1-C0-M0-T0
+
+#herbivore initial abundances
+G0<-0.1
+R0<-0
+B0<-0.8
+
+#set fishing pressure to 0
+hh_pars[16] = 0
+
+sc_1<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0, Turf = T0, Macroalgae=M0),
+                   P2_tseq, P2_Model, hh_pars)
+sc_1=as.data.frame(sc_1)
+sc_1$Space= 1 - sc_1$Coral - sc_1$Turf - sc_1$Macroalgae
+sc_1$Herbivores = sc_1$Grazers+sc_1$Generalists+sc_1$Browsers
+sc_1$Algae = sc_1$Turf+sc_1$Macroalgae
+
+```
+
+
+## Scenario 2 - Final Macroalgal Cover is High
+
+```{r Scenario 2}
+
+## Scenario 2 - Final Macroalgal Cover is High
+#What initial conditions do we want to examine?
+C0<-0.15
+M0<-0.0
+T0<-0.7
+S0<-1-C0-M0-T0
+
+#herbivore initial abundances
+G0<-0.8
+R0<-0
+B0<-0.1
+
+#set fishing pressure to 0
+hh_pars[16] = 0
+
+sc_2<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0, Turf = T0, Macroalgae=M0),
+                   P2_tseq, P2_Model, hh_pars)
+sc_2=as.data.frame(sc_2)
+sc_2$Space= 1 - sc_2$Coral - sc_2$Turf - sc_2$Macroalgae
+sc_2$Herbivores = sc_2$Grazers+sc_2$Generalists+sc_2$Browsers
+sc_2$Algae = sc_2$Turf+sc_2$Macroalgae
+
+```
+
+
+## Scenario 3 - Final Coral Cover is High
+
+```{r Scenario 3}
+
+## Scenario 3 - Final Coral Cover is High
+#What initial conditions do we want to examine?
+C0<-0.15
+M0<-0.0
+T0<-0.7
+S0<-1-C0-M0-T0
+
+#herbivore initial abundances
+G0<-0.45
+R0<-0
+B0<-0.45
+
+#set fishing pressure to 0
+hh_pars[16] = 0
+
+sc_3<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0, Turf = T0, Macroalgae=M0),
+                   P2_tseq, P2_Model, hh_pars)
+sc_3=as.data.frame(sc_3)
+sc_3$Space= 1 - sc_3$Coral - sc_3$Turf - sc_3$Macroalgae
+sc_3$Herbivores = sc_3$Grazers+sc_3$Generalists+sc_3$Browsers
+sc_3$Algae = sc_3$Turf+sc_3$Macroalgae
+
+```
+
+
+```{r Making Figures}
+# Need to reduce the number of data points to plot so the points are actually visible
+## subset time points at which to actually plot output....
+
+group1_times<-seq(0,1000,by=10)
+group2_times<-seq(7,1000,by=10)
+group3_times<-seq(3,1000,by=10)
+group4_times<-seq(0,1000,by=22)
+group5_times<-seq(7,1000,by=22)
+group6_times<-seq(14,1000,by=22)
+
+
+#Panel A response variables
+panelA_1<-subset(sc_1,sc_1$time %in% group1_times) #coral, algae
+panelA_2<-subset(sc_1,sc_1$time %in% group2_times) #herbivores, turf
+panelA_3<-subset(sc_1,sc_1$time %in% group3_times) #macroalgae
+panelA_4<-subset(sc_1,sc_1$time %in% group4_times) #generalists
+panelA_5<-subset(sc_1,sc_1$time %in% group5_times) #browsers
+panelA_6<-subset(sc_1,sc_1$time %in% group6_times) #grazers
+
+
+#Panel B response variables
+panelB_1<-subset(sc_2,sc_2$time %in% group1_times) #coral, algae
+panelB_2<-subset(sc_2,sc_2$time %in% group2_times) #herbivores, turf
+panelB_3<-subset(sc_2,sc_2$time %in% group3_times) #macroalgae
+panelB_4<-subset(sc_2,sc_2$time %in% group4_times) #generalists
+panelB_5<-subset(sc_2,sc_2$time %in% group5_times) #browsers
+panelB_6<-subset(sc_2,sc_2$time %in% group6_times) #grazers
+
+
+#Panel C response variables
+panelC_1<-subset(sc_3,sc_3$time %in% group1_times) #coral, algae
+panelC_2<-subset(sc_3,sc_3$time %in% group2_times) #herbivores, turf
+panelC_3<-subset(sc_3,sc_3$time %in% group3_times) #macroalgae
+panelC_4<-subset(sc_3,sc_3$time %in% group4_times) #generalists
+panelC_5<-subset(sc_3,sc_3$time %in% group5_times) #browsers
+panelC_6<-subset(sc_3,sc_3$time %in% group6_times) #grazers
+
+
+
+#Making the figures
+
+pdf("Fig_7_v1.pdf",width=3.75, height=7)
+
+
+par(mfrow=c(3,1),
+    mar=c(4,5,2.5,2),
+    family = "Times")
+
+#quartz()
+plot(panelA_2$time, panelA_2$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,400),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Final Turf Cover High",
+     cex.main=1.6)
+points(panelA_1$time, panelA_1$Algae, col="lightgreen", pch=15,cex=1)
+points(panelA_1$time, panelA_1$Coral, col="red", pch=15)
+# points(group4_1$time, group4_1$Generalists, col="hotpink", pch=15,cex=0.75)
+# points(group4_1$time, group4_1$Generalists, col="gray", pch=15,cex=0.75)
+points(panelA_4$time, panelA_4$Generalists, col="deeppink2", pch=20,cex=1.2)
+points(panelA_5$time, panelA_5$Browsers, col="purple",bg="purple", pch=20,cex=1.2)
+points(panelA_6$time, panelA_6$Grazers, col="orange",bg="orange", pch=20,cex=1.2)
+points(panelA_2$time, panelA_2$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(panelA_3$time, panelA_3$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+legend(x=75,y=1.06,
+       # x=75,y=1.04,
+       c("Herbivores","Algae","Coral", "Generalists","Browsers","Grazers","Turf","Macroalgae"),
+       pch=c(15,15,15,20,20,20,24,25),
+       col=c("blue","lightgreen","red","deeppink2","purple","orange","yellow","darkgreen"),
+       pt.bg=c("blue","lightgreen","red","deeppink2","purple","orange","yellow","darkgreen"),
+       ncol=3,
+       bty = "n",   ## remove box around legend
+       cex=0.85,
+       pt.cex = c(1,1,1,1.2,1.2,1.2,0.75,0.75))
+
+
+plot(panelB_2$time, panelB_2$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,400),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Final Macroalgal Cover High",
+     cex.main=1.6)
+points(panelB_1$time, panelB_1$Algae, col="lightgreen", pch=15,cex=1)
+points(panelB_1$time, panelB_1$Coral, col="red", pch=15)
+points(panelB_4$time, panelB_4$Generalists, col="deeppink2", pch=20,cex=1.2)
+points(panelB_5$time, panelB_5$Browsers, col="purple",bg="purple", pch=20,cex=1.2)
+points(panelB_6$time, panelB_6$Grazers, col="orange",bg="orange", pch=20,cex=1.2)
+points(panelB_2$time, panelB_2$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(panelB_3$time, panelB_3$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+
+
+
+plot(panelC_2$time, panelC_2$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,400),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Final Coral Cover High",
+     cex.main=1.6)
+points(panelC_1$time, panelC_1$Algae, col="lightgreen", pch=15,cex=1)
+points(panelC_1$time, panelC_1$Coral, col="red", pch=15)
+points(panelC_4$time, panelC_4$Generalists, col="deeppink2", pch=20,cex=1.2)
+points(panelC_5$time, panelC_5$Browsers, col="purple",bg="purple", pch=20,cex=1.2)
+points(panelC_6$time, panelC_6$Grazers, col="orange",bg="orange", pch=20,cex=1.2)
+points(panelC_2$time, panelC_2$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(panelC_3$time, panelC_3$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+
+
+dev.off()
+
+```
+
+
+
+
+
+

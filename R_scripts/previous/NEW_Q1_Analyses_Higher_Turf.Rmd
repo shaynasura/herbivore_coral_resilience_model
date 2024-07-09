@@ -1,0 +1,428 @@
+---
+title: "NEW_Question_1_Analyses_Higher_Turf"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+
+library(deSolve)
+library(ggplot2)
+library(reshape2)
+library(viridis)
+library(viridisLite)
+library(colorspace)
+library(gridExtra)
+library(gtable)
+library(grid)
+library(lemon)
+
+```
+
+
+## Initially did all of the analyses with Open Space starting at 0.75, which Deron said is unrealistic, so going to redo these analyses with open space starting at 0.15, and making Turf start much higher, since turf quickly colonizes empty space after a disturbance...
+
+
+# Figure S3 RECOVERY for manuscript - panel figure of how different initial conditions of herbivorous fish affect final coral cover under different levels of fishing pressure - STARTING WITH LOW INITIAL CORAL COVER TO TALK ABOUT RECOVERY!!!
+
+### Generalists set to 0
+### Only keeping those combinations where total H is equal to or less than 0.9
+```{r Figure S2 Recovery}
+
+GG_values<-seq(0,0.9,by=0.025)
+BB_values<-seq(0,0.9,by=0.025)
+
+f_values<-seq(0,0.7,by=0.1)    ## this is what is different from the main text figure - showing additional fishing pressure levels
+
+qq_initials_0<-expand.grid(GG_values,BB_values,f_values)
+qq_initials_0$RR_values<-rep(0, length(qq_initials_0[,1]))
+final_qq_0<-subset(qq_initials_0,rowSums(qq_initials_0[,c(1,2,4)])<=0.9)
+colnames(final_qq_0)<-c("Grazers","Browsers","Fishing_Pressure","Generalists")
+
+
+## Currently using hh_pars in lsoda below!!!!
+
+
+for(i in 1:length(final_qq_0$Grazers)){
+  G0<-final_qq_0$Grazers[i]
+  B0<-final_qq_0$Browsers[i]
+  R0<-final_qq_0$Generalists[i]
+#  C0<-0.35
+  C0<-0.15
+  M0<-0.0
+  # T0<-0.1
+  # T0<-0.6
+  T0<-0.7
+  S0<-1-C0-M0-T0
+  hh_pars[16]<-final_qq_0$Fishing_Pressure[i]   #set the fishing pressure
+  # hh_pars[4]<-0.1 #increase the amount of coral recruitment from 0.05 to 0.1
+  zz_output<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+  zz_output_new<-as.data.frame(zz_output)
+  final_qq_0$Final_Coral[i]<-tail(zz_output_new$Coral,1)
+  final_qq_0$Final_Turf[i]<-tail(zz_output_new$Turf,1)
+  final_qq_0$Final_Macroalgae[i]<-tail(zz_output_new$Macroalgae,1)
+  final_qq_0$Final_Grazers[i]<-tail(zz_output_new$Grazers,1)
+  final_qq_0$Final_Browsers[i]<-tail(zz_output_new$Browsers,1)
+  final_qq_0$Final_Generalists[i]<-tail(zz_output_new$Generalists,1)
+}
+
+```
+
+## Figure S3 RECOVERY continuted
+
+### Generalists set to 0.2
+```{r}
+GG_values<-seq(0,0.9,by=0.025)
+BB_values<-seq(0,0.9,by=0.025)
+
+f_values<-seq(0,0.7,by=0.1)  ## this is what is different from the main text figure - showing additional fishing pressure levels
+
+qq_initials_2<-expand.grid(GG_values,BB_values,f_values)
+qq_initials_2$RR_values<-rep(0.2, length(qq_initials_2[,1]))
+final_qq_2<-subset(qq_initials_2,rowSums(qq_initials_2[,c(1,2,4)])<=0.9)
+colnames(final_qq_2)<-c("Grazers","Browsers","Fishing_Pressure","Generalists")
+
+
+## Currently using hh_pars in lsoda below!!!!
+
+for(i in 1:length(final_qq_2$Grazers)){
+  G0<-final_qq_2$Grazers[i]
+  B0<-final_qq_2$Browsers[i]
+  R0<-final_qq_2$Generalists[i]
+  # C0<-0.35
+  C0<-0.15
+  M0<-0.0
+  # T0<-0.1
+  # T0<-0.6
+  T0<-0.7
+  S0<-1-C0-M0-T0
+  hh_pars[16]<-final_qq_2$Fishing_Pressure[i]   #set the fishing pressure
+  # hh_pars[4]<-0.1 #increase the amount of coral recruitment from 0.05 to 0.1
+  zz_output<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+  zz_output_new<-as.data.frame(zz_output)
+  final_qq_2$Final_Coral[i]<-tail(zz_output_new$Coral,1)
+  final_qq_2$Final_Turf[i]<-tail(zz_output_new$Turf,1)
+  final_qq_2$Final_Macroalgae[i]<-tail(zz_output_new$Macroalgae,1)
+  final_qq_2$Final_Grazers[i]<-tail(zz_output_new$Grazers,1)
+  final_qq_2$Final_Browsers[i]<-tail(zz_output_new$Browsers,1)
+  final_qq_2$Final_Generalists[i]<-tail(zz_output_new$Generalists,1)
+}
+```
+
+## Figure S3 RECOVERY continuted
+
+### Generalists set to 0.4
+```{r}
+GG_values<-seq(0,0.9,by=0.025)
+BB_values<-seq(0,0.9,by=0.025)
+
+f_values<-seq(0,0.7,by=0.1)  ## this is what is different from the main text figure - showing addition fishing pressure levels
+
+qq_initials_4<-expand.grid(GG_values,BB_values,f_values)
+qq_initials_4$RR_values<-rep(0.4, length(qq_initials_4[,1]))
+final_qq_4<-subset(qq_initials_4,rowSums(qq_initials_4[,c(1,2,4)])<=0.9)
+colnames(final_qq_4)<-c("Grazers","Browsers","Fishing_Pressure","Generalists")
+
+
+## Currently using hh_pars in lsoda below!!!!
+
+for(i in 1:length(final_qq_4$Grazers)){
+  G0<-final_qq_4$Grazers[i]
+  B0<-final_qq_4$Browsers[i]
+  R0<-final_qq_4$Generalists[i]
+  # C0<-0.35
+  C0<-0.15
+  M0<-0.0
+  # T0<-0.1
+  # T0<-0.6
+  T0<-0.7
+  S0<-1-C0-M0-T0
+  hh_pars[16]<-final_qq_4$Fishing_Pressure[i]   #set the fishing pressure
+  # hh_pars[4]<-0.1 #increase the amount of coral recruitment from 0.05 to 0.1
+  zz_output<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+  zz_output_new<-as.data.frame(zz_output)
+  final_qq_4$Final_Coral[i]<-tail(zz_output_new$Coral,1)
+  final_qq_4$Final_Turf[i]<-tail(zz_output_new$Turf,1)
+  final_qq_4$Final_Macroalgae[i]<-tail(zz_output_new$Macroalgae,1)
+  final_qq_4$Final_Grazers[i]<-tail(zz_output_new$Grazers,1)
+  final_qq_4$Final_Browsers[i]<-tail(zz_output_new$Browsers,1)
+  final_qq_4$Final_Generalists[i]<-tail(zz_output_new$Generalists,1)
+}
+```
+
+## Figure S3 RECOVERY continuted - actually making the figure here!
+
+### Plotting output
+```{r}
+
+# Row bind the various data frames in order to plot by them
+final_qq_0$Id="Generalists = 0"
+final_qq_2$Id="Generalists = 0.2"
+final_qq_4$Id="Generalists = 0.4"
+qqall=rbind(final_qq_0, final_qq_2, final_qq_4)
+
+#Getting names for Fishing Pressure so can plot them....
+qqall$Fishing_ID = qqall$Fishing_Pressure
+qqall$Fishing_ID <- as.factor(qqall$Fishing_ID)
+levels(qqall$Fishing_ID)
+levels(qqall$Fishing_ID)[levels(qqall$Fishing_ID)=="0"]<-"Fishing\nPressure\n= 0"
+levels(qqall$Fishing_ID)[levels(qqall$Fishing_ID)=="0.1"]<-"Fishing\nPressure\n= 0.1"
+levels(qqall$Fishing_ID)[levels(qqall$Fishing_ID)=="0.2"]<-"Fishing\nPressure\n= 0.2"
+levels(qqall$Fishing_ID)[levels(qqall$Fishing_ID)=="0.3"]<-"Fishing\nPressure\n= 0.3"
+levels(qqall$Fishing_ID)[levels(qqall$Fishing_ID)=="0.4"]<-"Fishing\nPressure\n= 0.4"
+levels(qqall$Fishing_ID)[levels(qqall$Fishing_ID)=="0.5"]<-"Fishing\nPressure\n= 0.5"
+levels(qqall$Fishing_ID)[levels(qqall$Fishing_ID)=="0.6"]<-"Fishing\nPressure\n= 0.6"
+levels(qqall$Fishing_ID)[levels(qqall$Fishing_ID)=="0.7"]<-"Fishing\nPressure\n= 0.7"
+levels(qqall$Fishing_ID)
+
+
+## library(lemon)
+
+
+# pdf("Paper_Fig_S3_v2_abundance.pdf",width=6, height=12)
+# pdf("Paper_Fig_S3_v3_C0.15.pdf",width=6, height=12)
+# pdf("Paper_Fig_S3_v4_T0.6.pdf",width=6, height=12)
+pdf("Paper_Fig_S3_v6_T0.7.pdf",width=6, height=12)
+# pdf("Paper_Fig_S3_v6_T0.7_ic0.1.pdf",width=6, height=12)
+
+#quartz()
+## Making this plot with facet_rep_grid instead of facet_wrap so can better label the rows and columns
+ggplot(data=qqall, aes(Grazers, Browsers)) +
+      geom_tile(aes(fill = Final_Coral)) +
+      theme_classic(base_size=10,base_family="Times") +
+      theme(axis.title=element_text(size=11,face="bold")) + 
+      scale_x_continuous("Grazer Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      scale_y_continuous("Browser Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      labs(fill = "Final\nCoral\nCover") +
+#      ggtitle(paste("Fishing Pressure = ",f_values[i])) + 
+      scale_fill_viridis(option = "viridis",limits=c(0,0.8)) +
+      scale_colour_viridis(option = "viridis",limits=c(0,0.8)) +
+  facet_rep_grid(Fishing_ID~Id) +
+  coord_capped_cart(bottom='both', left='both') +
+  theme(strip.text.x = element_text(size = 11)) + 
+  theme(strip.text.y = element_text(size = 11,angle = 0))
+
+dev.off()
+
+
+```
+
+
+
+### Plotting a subset of the above scenarios for the MAIN TEXT FIGURE - Figure 2, which is showing the recovery following a disturbance
+## Figure 2 for main text
+
+```{r}
+
+## Need to subset the qqall data frame for just fishing pressures of 0, 0.2, and 0.4
+
+qqall_0f<-subset(qqall,Fishing_Pressure == 0)
+qqall_0.2f<-subset(qqall,Fishing_Pressure == "0.2")
+qqall_0.4f<-subset(qqall,Fishing_Pressure == "0.4")
+# qqall_0.3f<-subset(qqall,Fishing_Pressure == "0.3")
+# qqall_0.5f<-subset(qqall,Fishing_Pressure == "0.5")
+# qqall_0.6f<-subset(qqall,Fishing_Pressure == "0.6")
+# 
+# qqall_small=rbind(qqall_0f, qqall_0.3f, qqall_0.6f)
+# qqall_small=rbind(qqall_0f, qqall_0.3f, qqall_0.5f)
+qqall_small=rbind(qqall_0f, qqall_0.2f, qqall_0.4f)
+
+#Getting names for Fishing Pressure so can plot them....
+qqall_small$Fishing_ID <- as.factor(qqall_small$Fishing_ID)
+qqall_small$Id <- as.factor(qqall_small$Id)
+
+
+# levels(qqall_small$Fishing_ID)
+# levels(qqall_small$Fishing_ID)[levels(qqall_small$Fishing_ID)=="0"]<-"Fishing\nPressure\n= 0"
+# levels(qqall_small$Fishing_ID)[levels(qqall_small$Fishing_ID)=="0.3"]<-"Fishing\nPressure\n= 0.3"
+# levels(qqall_small$Fishing_ID)[levels(qqall_small$Fishing_ID)=="0.6"]<-"Fishing\nPressure\n= 0.6"
+# levels(qqall_small$Fishing_ID)
+
+
+# pdf("Fig_2_NEW_abundance.pdf",width=7, height=5.7)
+# pdf("Fig_2_NEW_abundance_v2.pdf",width=7, height=5.7)
+# pdf("Fig_2_NEW_abundance_v3_T0.6.pdf",width=7, height=5.7)
+pdf("Fig_2_NEW_abundance_v4_T0.7.pdf",width=7, height=5.7)
+
+#quartz()
+## Making this plot with facet_rep_grid instead of facet_wrap so can better label the rows and columns
+ggplot(data=qqall_small, aes(Grazers, Browsers)) +
+      geom_tile(aes(fill = Final_Coral)) +
+      theme_classic(base_size=10,base_family="Times") +
+      theme(axis.title=element_text(size=11,face="bold")) + 
+      scale_x_continuous("Grazer Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      scale_y_continuous("Browser Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      labs(fill = "Final\nCoral\nCover") +
+#      ggtitle(paste("Fishing Pressure = ",f_values[i])) + 
+      scale_fill_viridis(option = "viridis",limits=c(0,0.8)) +
+      scale_colour_viridis(option = "viridis",limits=c(0,0.8)) +
+  facet_rep_grid(Fishing_ID~Id) +
+  coord_capped_cart(bottom='both', left='both') +
+  theme(strip.text.x = element_text(size = 11)) + 
+  theme(strip.text.y = element_text(size = 11,angle = 0))
+
+dev.off()
+
+
+```
+
+
+
+
+## Plotting the above output, but showing final TURF cover instead of final coral cover
+
+```{r Examining final TURF cover}
+
+pdf("Fig_2_Final_Turf.pdf",width=7, height=5.7)
+
+#quartz()
+## Making this plot with facet_rep_grid instead of facet_wrap so can better label the rows and columns
+ggplot(data=qqall_small, aes(Grazers, Browsers)) +
+      geom_tile(aes(fill = Final_Turf)) +
+      theme_classic(base_size=10,base_family="Times") +
+      theme(axis.title=element_text(size=11,face="bold")) + 
+      scale_x_continuous("Grazer Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      scale_y_continuous("Browser Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      labs(fill = "Final\nTurf\nCover") +
+#      ggtitle(paste("Fishing Pressure = ",f_values[i])) + 
+      scale_fill_viridis(option = "cividis",limits=c(0,1)) +
+      scale_colour_viridis(option = "cividis",limits=c(0,1)) +
+  facet_rep_grid(Fishing_ID~Id) +
+  coord_capped_cart(bottom='both', left='both') +
+  theme(strip.text.x = element_text(size = 11)) + 
+  theme(strip.text.y = element_text(size = 11,angle = 0))
+
+dev.off()
+
+```
+
+
+
+## Plotting the above output, but showing final MACROALGAL cover instead of final coral cover
+
+```{r Examining final MACROALGAL cover}
+
+pdf("Fig_2_Final_Macro.pdf",width=7, height=5.7)
+
+#quartz()
+## Making this plot with facet_rep_grid instead of facet_wrap so can better label the rows and columns
+ggplot(data=qqall_small, aes(Grazers, Browsers)) +
+      geom_tile(aes(fill = Final_Macroalgae)) +
+      theme_classic(base_size=10,base_family="Times") +
+      theme(axis.title=element_text(size=11,face="bold")) + 
+      scale_x_continuous("Grazer Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      scale_y_continuous("Browser Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      labs(fill = "Final\nMacroalgal\nCover") +
+#      ggtitle(paste("Fishing Pressure = ",f_values[i])) + 
+      scale_fill_viridis(option = "magma",limits=c(0,1)) +
+      scale_colour_viridis(option = "magma",limits=c(0,1)) +
+  facet_rep_grid(Fishing_ID~Id) +
+  coord_capped_cart(bottom='both', left='both') +
+  theme(strip.text.x = element_text(size = 11)) + 
+  theme(strip.text.y = element_text(size = 11,angle = 0))
+
+dev.off()
+
+```
+
+
+## Calculate one variable to show both turf and macroalgae...
+
+```{r}
+
+qqall_small$TurfMacro<-(qqall_small$Final_Turf) / (qqall_small$Final_Macroalgae)
+
+qqall_small$Turf_or_Macro<-ifelse(qqall_small$Final_Turf>qqall_small$Final_Macroalgae,
+                              qqall_small$Final_Turf,
+                              -qqall_small$Final_Macroalgae)
+
+```
+
+## Plotting the above Turf / Macroalgae variable...
+
+```{r}
+
+pdf("Fig_2_Final_TurfMacro.pdf",width=7, height=5.7)
+
+#quartz()
+## Making this plot with facet_rep_grid instead of facet_wrap so can better label the rows and columns
+ggplot(data=qqall_small, aes(Grazers, Browsers)) +
+      geom_tile(aes(fill = TurfMacro)) +
+      theme_classic(base_size=10,base_family="Times") +
+      theme(axis.title=element_text(size=11,face="bold")) + 
+      scale_x_continuous("Grazer Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      scale_y_continuous("Browser Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      labs(fill = "Final\nCover of\nTurf/Macro") +
+#      ggtitle(paste("Fishing Pressure = ",f_values[i])) + 
+      scale_fill_viridis(option = "cividis",limits=c(0,7)) +
+      scale_colour_viridis(option = "cividis",limits=c(0,7)) +
+  facet_rep_grid(Fishing_ID~Id) +
+  coord_capped_cart(bottom='both', left='both') +
+  theme(strip.text.x = element_text(size = 11)) + 
+  theme(strip.text.y = element_text(size = 11,angle = 0))
+
+dev.off()
+
+```
+
+
+
+```{r}
+
+pdf("Fig_2_Final_TurfORMacro.pdf",width=7, height=5.7)
+
+#this version uses the cividis color palette
+# pdf("Fig_2_Final_TurfORMacro_v2.pdf",width=7, height=5.7) 
+
+#this version uses the "Fall" color palette
+pdf("Fig_2_Final_TurfORMacro_v3.pdf",width=7, height=5.7) 
+
+#quartz()
+## Making this plot with facet_rep_grid instead of facet_wrap so can better label the rows and columns
+ggplot(data=qqall_small, aes(Grazers, Browsers)) +
+      geom_tile(aes(fill = Turf_or_Macro)) +
+      theme_classic(base_size=10,base_family="Times") +
+      theme(axis.title=element_text(size=11,face="bold")) + 
+      scale_x_continuous("Grazer Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      scale_y_continuous("Browser Abundance",breaks = c(0,0.3,0.6,0.9),
+                         labels = c(0,0.3,0.6,0.9),limits = c(0,0.9)) +
+      labs(fill = "Final\nCover of\nTurf or\nMacroalgae") +
+#      ggtitle(paste("Fishing Pressure = ",f_values[i])) + 
+      # scale_fill_continuous_diverging(palette = "Green-Brown", limits=c(-1,1)) +
+      # scale_fill_viridis(option = "cividis",limits=c(-1,1)) +
+      # scale_colour_viridis(option = "cividis",limits=c(-1,1)) +
+      scale_fill_continuous_divergingx(palette = "Fall", limits=c(-1,1)) +
+  facet_rep_grid(Fishing_ID~Id) +
+  coord_capped_cart(bottom='both', left='both') +
+  theme(strip.text.x = element_text(size = 11)) + 
+  theme(strip.text.y = element_text(size = 11,angle = 0))
+
+dev.off()
+
+
+```
+
+
+## Can I plot any of these outputs and look at the algal cover over time?
+
+```{r}
+
+```
+
+

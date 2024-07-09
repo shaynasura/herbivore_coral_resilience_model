@@ -1,0 +1,1055 @@
+---
+title: "NEW_Basic_v_Exp_Model"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+
+library(deSolve)
+library(ggplot2)
+library(reshape2)
+library(viridis)
+library(gridExtra)
+
+```
+
+## Basic Model
+
+To add a new chunk of R code, do option+command+i
+```{r Basic Model,echo=TRUE}
+
+#Set initial conditions for state variables
+H0<-0.9
+C0<-0.75
+A0<-0.1
+S0 <- 1 - C0 - A0
+
+state_vars<-c(HH=H0, CC=C0, AA=A0, SS=S0)
+
+#generate a series of times at which you want the ODE solver to output population sizes
+#tseq<-seq(0,100,by=0.1)
+tseq<-seq(0,1000,by=0.1)
+
+#Generate a vector of parameter values
+pars<-c(bc<-0.3,
+        ba<- 0.8,
+        ic<-0.05,
+        ia<-0.05,
+        dc<-0.1,
+        r<-1,
+        g<-1,
+        eta<-1,
+        alpha<-0.5,
+        sigma<-0.6,
+        f<-0.1)
+
+Basic_Model<-function(tseq,state_vars,pars){
+  HH <- state_vars[1]
+  CC <- state_vars[2]
+  AA <- state_vars[3]
+  SS <- 1 - CC - AA
+  
+  bc <- pars[1]
+  ba <- pars[2]
+  ic <- pars[3]
+  ia <- pars[4]
+  dc <- pars[5]
+  r <- pars[6]
+  g <- pars[7]
+  eta <- pars[8]
+  alpha <- pars[9]
+  sigma <- pars[10]
+  f <- pars[11]
+  
+  dC_dt <- (ic + bc*CC)*SS*(1-alpha*AA)- dc*CC
+  dA_dt <-(ia + ba*AA)*SS - (g*HH*AA / (g*eta*AA+1))
+  dH_dt <-r*HH*(1 - (HH / ((1-sigma) + sigma*CC))) - f*HH
+
+  return(list(c(dH<- dH_dt,
+                dC <- dC_dt,
+                dA <- dA_dt)))
+}
+
+Basic_M_output<-lsoda(c(Herbivores=H0,Coral=C0,Algae=A0), tseq, Basic_Model, pars)
+Basic_M_output=as.data.frame(Basic_M_output)
+Basic_M_output$Space= 1 - Basic_M_output$Coral - Basic_M_output$Algae
+
+#head(Basic_M_output)
+#tail(Basic_M_output)
+
+
+## Run the model again with a higher fishing pressure f = 0.5
+pars[11]=0.5
+Basic_M_output_2<-lsoda(c(Herbivores=H0,Coral=C0,Algae=A0), tseq, Basic_Model, pars)
+Basic_M_output_2=as.data.frame(Basic_M_output_2)
+
+
+## Run the model again with an even higher fishing pressure f = 0.9
+pars[11]=0.9
+Basic_M_output_3<-lsoda(c(Herbivores=H0,Coral=C0,Algae=A0), tseq, Basic_Model, pars)
+Basic_M_output_3=as.data.frame(Basic_M_output_3)
+
+
+```
+
+
+```{r Phase 2 Model}
+#These were the initial conditions for the basic model when I first ran that...
+# H0<-0.9
+# C0<-0.75
+# M0<-0.1
+
+### Old assumptions of initial conditions to make previous model equations collapse to basic model
+# G0<-0.3
+# R0<-0.3
+# B0<-0.3
+# C0<-0.75
+# T0<-0.05
+# M0<-0.05
+# S0 <- 1 - T0 - C0 - M0
+
+
+G0<-0.45
+R0<-0
+B0<-0.45
+C0<-0.75
+T0<-0.05
+M0<-0.05
+S0 <- 1 - T0 - C0 - M0
+
+# H0<-0.6
+# C0<-0.5
+# M0<-0.2
+# S0 <- 1 - C0 - M0
+
+P2_state_vars<-c(GG=G0, RR=R0, BB=B0, CC=C0, TT=T0, MM=M0, SS=S0)
+
+#generate a series of times at which you want the ODE solver to output population sizes
+#P2_tseq<-seq(0,100,by=0.1)
+P2_tseq<-seq(0,1000,by=0.1)
+
+#Generate a vector of parameter values
+P2_pars<-c(bc<-0.3,
+           bt<-0.8,      #use the same value as bm from basic model
+           bm<-0.8,      #use the same value as bm from basic model
+           ic<-0.05,
+           it<-0.025,    #need two of these, one for turf and one for macroalgae
+           im<-0.025,    #need two of these, one for turf and one for macroalgae
+           dc<-0.1,
+           r<-1,
+           # gt<-1,       #need two of these, one for turf and one for macroalgae
+           # gm<-1,       #need two of these, one for turf and one for macroalgae
+           gt<-2,       #need two of these, one for turf and one for macroalgae
+           gm<-2,       #need two of these, one for turf and one for macroalgae
+           etaT<-1,     #need two of these, one for turf and one for macroalgae
+           etaM<-1,     #need two of these, one for turf and one for macroalgae
+           alphaT<-0.5,
+           alphaM<-0.5,
+           sigma<-0.6,
+           f<-0.1,
+           gamma<-0)
+
+P2_Model<-function(P2_tseq,P2_state_vars,P2_pars){
+  GG <- P2_state_vars[1]
+  RR <- P2_state_vars[2]
+  BB <- P2_state_vars[3]
+  CC <- P2_state_vars[4]
+  TT <- P2_state_vars[5]
+  MM <- P2_state_vars[6]
+  SS <- 1 - CC - TT - MM
+  
+  bc <- P2_pars[1]
+  bt <- P2_pars[2]
+  bm <- P2_pars[3]
+  ic <- P2_pars[4]
+  it <- P2_pars[5]
+  im <- P2_pars[6]
+  dc <- P2_pars[7]
+  r <- P2_pars[8]
+  gt <- P2_pars[9]
+  gm <- P2_pars[10]
+  etaT <- P2_pars[11]
+  etaM <- P2_pars[12]
+  alphaT <- P2_pars[13]
+  alphaM <- P2_pars[14]
+  sigma <- P2_pars[15]
+  f <- P2_pars[16]
+  gamma <- P2_pars[17]
+  
+  dG_dt <-r*GG*(1 - ((GG+RR+BB) / ((1-sigma) + sigma*CC))) - f*GG
+  dR_dt <-r*RR*(1 - ((GG+RR+BB) / ((1-sigma) + sigma*CC))) - f*RR
+  dB_dt <-r*BB*(1 - ((GG+RR+BB) / ((1-sigma) + sigma*CC))) - f*BB
+  dC_dt <- (ic + bc*CC)*SS*(1-(alphaT*TT+alphaM*MM)) - dc*CC
+  dT_dt <- (it + bt*TT)*(SS) - (gamma*TT) - (((gt*GG*TT) / (gt*etaT*TT+1)) + ((gt*RR*TT)/(gt*etaT*TT+gm*etaM*MM+1)))
+  dM_dt <- (im + bm*MM)*(SS) + (gamma*TT) - (((gm*BB*MM) / (gm*etaM*MM+1)) + ((gm*RR*MM)/(gt*etaT*TT+gm*etaM*MM+1)))
+
+
+  return(list(c(dG <- dG_dt,
+                dR <- dR_dt,
+                dB <- dB_dt,
+                dC <- dC_dt,
+                dT <- dT_dt,
+                dM <- dM_dt)))
+}
+
+P2_output<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, P2_pars)
+P2_output=as.data.frame(P2_output)
+
+
+P2_output$Space= 1 - P2_output$Coral - P2_output$Turf - P2_output$Macroalgae
+P2_output$Herbivores = P2_output$Grazers+P2_output$Generalists+P2_output$Browsers
+P2_output$Algae = P2_output$Turf+P2_output$Macroalgae
+
+
+
+# Compare expanded model output to basic model output...
+Herbs<-(round(P2_output$Herbivores,digits=4) == round(Basic_M_output$Herbivores,digits=4))
+Herb.Trues<-sum(Herbs==TRUE)
+#Herb.Trues
+Algals<-(round(P2_output$Algae,digits=4) == round(Basic_M_output$Algae,digits=4))
+Algals.Trues<-sum(Algals==TRUE)
+#Algals.Trues
+Coral<-(round(P2_output$Coral,digits=4) == round(Basic_M_output$Coral,digits=4))
+Coral.Trues<-sum(Coral==TRUE)
+Coral.Trues
+
+
+
+## Run the model again with a higher fishing pressure f = 0.5
+P2_pars[16]=0.5
+P2_output_2<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, P2_pars)
+P2_output_2=as.data.frame(P2_output_2)
+P2_output_2$Space= 1 - P2_output_2$Coral - P2_output_2$Turf - P2_output_2$Macroalgae
+P2_output_2$Herbivores = P2_output_2$Grazers+P2_output_2$Generalists+P2_output_2$Browsers
+P2_output_2$Algae = P2_output_2$Turf+P2_output_2$Macroalgae
+#tail(P2_output_2)
+
+
+## Run the model again with an even higher fishing pressure f = 0.9
+P2_pars[16]=0.9
+P2_output_3<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, P2_pars)
+P2_output_3=as.data.frame(P2_output_3)
+P2_output_3$Space= 1 - P2_output_3$Coral - P2_output_3$Turf - P2_output_3$Macroalgae
+P2_output_3$Herbivores = P2_output_3$Grazers+P2_output_3$Generalists+P2_output_3$Browsers
+P2_output_3$Algae = P2_output_3$Turf+P2_output_3$Macroalgae
+#tail(P2_output_3)
+
+
+```
+
+
+
+
+
+## Basic Model Plots over Time for Different Fishing Pressures
+## Manuscript Figure 1c - or maybe moved into supplement later!
+
+```{r Plots vs Time, fig.width = 8, fig.height = 6, dpi=300}
+
+## subset time points at which to actually plot output....
+
+# basic_times<-seq(0,1000,by=20)    ## miss the details happening in the early time steps when I plot it out for the full 1000 time steps - but in supplement, maybe?
+# basic_times<-seq(0,200,by=2)
+basic_times<-seq(0,200,by=2)
+reduced_Basic<-subset(Basic_M_output,Basic_M_output$time %in% basic_times)
+reduced_Basic_2<-subset(Basic_M_output_2,Basic_M_output_2$time %in% basic_times)
+reduced_Basic_3<-subset(Basic_M_output_3,Basic_M_output_3$time %in% basic_times)
+
+
+# p2_times<-seq(1,1000,by=20)    ## miss the details happening in the early time steps when I plot it out for the full 1000 time steps - but in supplement, maybe?
+# p2_times<-seq(1,200,by=2)
+p2_times<-seq(1,200,by=4)
+reduced_p2<-subset(P2_output,P2_output$time %in% p2_times)
+reduced_p2_2<-subset(P2_output_2,P2_output_2$time %in% p2_times)
+reduced_p2_3<-subset(P2_output_3,P2_output_3$time %in% p2_times)
+
+
+#quartz()
+
+#pdf("Basic_v_Expanded.pdf",width=4, height=10)
+pdf("Paper_Fig_1_c_v2.3.pdf",width=3.75, height=7)
+
+
+par(mfrow=c(3,1),
+    mar=c(4,5,2.5,2),
+    family = "Times")
+
+plot(reduced_Basic$time, reduced_Basic$Herbivores,
+     pch = 15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,200),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.1",
+     cex.main=1.6)
+points(reduced_Basic$time, reduced_Basic$Algae, col="darkgreen", pch=15)
+points(reduced_Basic$time, reduced_Basic$Coral, col="red", pch=15)
+points(reduced_p2$time, reduced_p2$Herbivores, col="lightblue", pch=17)
+points(reduced_p2$time, reduced_p2$Coral, col="pink", pch=17)
+points(reduced_p2$time, reduced_p2$Algae, col="lightgreen", pch=17)
+legend(x=120,y=0.65,
+       c("Basic Herbivores","Collapsed Herbivores","Basic Algae","Collapsed Algae","Basic Coral","Collapsed Coral"),
+       pch=c(15,17,15,17,15,17),
+       col=c("blue","lightblue","darkgreen","lightgreen","red","pink"),
+       cex=0.85)
+
+
+plot(reduced_Basic_2$time, reduced_Basic_2$Herbivores,
+     pch = 22,
+     col = "blue",
+     bg = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,200),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.5",
+     cex.main=1.6)
+points(reduced_Basic_2$time, reduced_Basic_2$Algae, col="darkgreen", pch=22, bg = "darkgreen")
+points(reduced_Basic_2$time, reduced_Basic_2$Coral, col="red", pch=22, bg = "red")
+points(reduced_p2_2$time, reduced_p2_2$Herbivores, col="lightblue", pch=24, bg = "lightblue")
+points(reduced_p2_2$time, reduced_p2_2$Coral, col="pink", pch=24, bg = "pink")
+points(reduced_p2_2$time, reduced_p2_2$Algae, col="lightgreen", pch=24, bg = "lightgreen")
+
+
+plot(reduced_Basic_3$time, reduced_Basic_3$Herbivores,
+     pch = 22,
+     col = "blue",
+     bg = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,200),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.9",
+     cex.main=1.6)
+points(reduced_Basic_3$time, reduced_Basic_3$Algae, col="darkgreen", pch=22, bg = "darkgreen")
+points(reduced_Basic_3$time, reduced_Basic_3$Coral, col="red", pch=22, bg = "red")
+points(reduced_p2_3$time, reduced_p2_3$Herbivores, col="lightblue", pch=24, bg = "lightblue")
+points(reduced_p2_3$time, reduced_p2_3$Coral, col="pink", pch=24, bg = "pink")
+points(reduced_p2_3$time, reduced_p2_3$Algae, col="lightgreen", pch=24, bg = "lightgreen")
+
+dev.off()
+
+
+```
+
+
+## Expanded Model Initial Conditions & Parameters
+
+```{r}
+#Generate a vector of parameter values
+hh_pars<-c(bc<-0.3, bt<-0.8,bm<-0.5,      #expansion of current benthic cover
+           ic<-0.05, it<-0.05, im<-0,     #import of propagules
+           dc<-0.1,                       #coral mortality
+           r<-1,                          #herbivore growth rate
+#           gt<-1, gm<-0.5,                #algae mortality - used previously before changing our model equations
+           gt<-2, gm<-1,                #algae mortality
+           etaT<-0, etaM<-1,              #algae handling time
+           alphaT<-0.25, alphaM<-0.5,     #competitive effect on coral
+           sigma<-0.6,                    #relationship between coral & herbivores
+           f<-0.5,                        #fishing pressure
+           gamma<-0.1)                    #transition from turf to macroalgae
+
+
+```
+
+
+
+## Sept. 2021 - This is now Figure 1 Panel c (instead of d)
+
+## Making Figure 1 Panel d - showing the expanded model (with estimated parameter values instead of parameter values that allow the model to collapse to the basic model) over time
+
+
+```{r}
+## What am I using for the initial conditions for the Expanded Model? - Using what I have in my Table S2 from the manuscript...
+
+G0<-0.3
+R0<-0.3
+B0<-0.3
+C0<-0.75
+T0<-0.1
+M0<-0.0
+S0 <- 1 - T0 - C0 - M0
+
+
+#set fishing pressure to 0.1 for initial run
+hh_pars[16] = 0.1
+Exp_output<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+Exp_output=as.data.frame(Exp_output)
+Exp_output$Space= 1 - Exp_output$Coral - Exp_output$Turf - Exp_output$Macroalgae
+Exp_output$Herbivores = Exp_output$Grazers+Exp_output$Generalists+Exp_output$Browsers
+Exp_output$Algae = Exp_output$Turf+Exp_output$Macroalgae
+
+
+## Run the model again with a higher fishing pressure f = 0.5
+hh_pars[16]=0.5
+Exp_output_2<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+Exp_output_2=as.data.frame(Exp_output_2)
+Exp_output_2$Space= 1 - Exp_output_2$Coral - Exp_output_2$Turf - Exp_output_2$Macroalgae
+Exp_output_2$Herbivores = Exp_output_2$Grazers+Exp_output_2$Generalists+Exp_output_2$Browsers
+Exp_output_2$Algae = Exp_output_2$Turf+Exp_output_2$Macroalgae
+#tail(Exp_output_2)
+
+
+## Run the model again with an even higher fishing pressure f = 0.9
+hh_pars[16]=0.9
+Exp_output_3<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+Exp_output_3=as.data.frame(Exp_output_3)
+Exp_output_3$Space= 1 - Exp_output_3$Coral - Exp_output_3$Turf - Exp_output_3$Macroalgae
+Exp_output_3$Herbivores = Exp_output_3$Grazers+Exp_output_3$Generalists+Exp_output_3$Browsers
+Exp_output_3$Algae = Exp_output_3$Turf+Exp_output_3$Macroalgae
+#tail(Exp_output_3)
+
+
+```
+
+
+## Plotting figure of expanded model over time for 3 different fishing pressure values
+## Alternative version of above figure with points instead of lines
+## See next code chunk for UPDATED version of Figure 1C - November 2, 2021
+
+```{r}
+# Need to reduce the number of data points to plot so the points are actually visible
+## subset time points at which to actually plot output....
+
+group1_times<-seq(0,200,by=6)
+#which state variables do I want in group 1?
+# Herbivores, Algae, Coral, Generalists
+group1_1<-subset(Exp_output,Exp_output$time %in% group1_times)
+group1_2<-subset(Exp_output_2,Exp_output$time %in% group1_times)
+group1_3<-subset(Exp_output_3,Exp_output$time %in% group1_times)
+
+#which state variables do I want in group 2?
+#Grazers, Turf
+group2_times<-seq(3,200,by=6)
+group2_1<-subset(Exp_output,Exp_output$time %in% group2_times)
+group2_2<-subset(Exp_output_2,Exp_output$time %in% group2_times)
+group2_3<-subset(Exp_output_3,Exp_output$time %in% group2_times)
+
+
+#which state variables do I want in group 3?
+#Browsers, Macroalgae
+group3_times<-seq(1,200,by=6)
+group3_1<-subset(Exp_output,Exp_output$time %in% group3_times)
+group3_2<-subset(Exp_output_2,Exp_output$time %in% group3_times)
+group3_3<-subset(Exp_output_3,Exp_output$time %in% group3_times)
+
+
+#Different times for the 3 different types of herbivores
+group4_times<-seq(0,200,by=9)
+group4_1<-subset(Exp_output,Exp_output$time %in% group4_times)
+group4_2<-subset(Exp_output_2,Exp_output$time %in% group4_times)
+group4_3<-subset(Exp_output_3,Exp_output$time %in% group4_times)
+
+group5_times<-seq(3,200,by=9)
+group5_1<-subset(Exp_output,Exp_output$time %in% group5_times)
+group5_2<-subset(Exp_output_2,Exp_output$time %in% group5_times)
+group5_3<-subset(Exp_output_3,Exp_output$time %in% group5_times)
+
+group6_times<-seq(6,200,by=9)
+group6_1<-subset(Exp_output,Exp_output$time %in% group6_times)
+group6_2<-subset(Exp_output_2,Exp_output$time %in% group6_times)
+group6_3<-subset(Exp_output_3,Exp_output$time %in% group6_times)
+
+
+#Making the figures - see next code chunk for UPDATED figure
+
+# pdf("Paper_Fig_1_d_v3.pdf",width=3.75, height=7)
+# pdf("Fig_1D_v1.pdf",width=3.75, height=7)
+pdf("Fig_1D_v2.pdf",width=3.75, height=7)
+
+
+par(mfrow=c(3,1),
+    mar=c(4,5,2.5,2),
+    family = "Times")
+
+#quartz()
+plot(group2_1$time, group2_1$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,200),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.1",
+     cex.main=1.6)
+points(group2_1$time, group2_1$Algae, col="lightgreen", pch=15,cex=0.75)
+points(group1_1$time, group1_1$Coral, col="red", pch=15)
+# points(group4_1$time, group4_1$Generalists, col="hotpink", pch=15,cex=0.75)
+points(group4_1$time, group4_1$Generalists, col="gray", pch=15,cex=0.75)
+points(group5_1$time, group5_1$Browsers, col="purple",bg="purple", pch=24,cex=0.75)
+points(group6_1$time, group6_1$Grazers, col="orange",bg="orange", pch=25,cex=0.75)
+points(group2_1$time, group2_1$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(group3_1$time, group3_1$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+legend(x=20,y=0.65,
+       c("Herbivores","Algae","Coral", "Generalists","Browsers","Grazers","Turf","Macroalgae"),
+       pch=c(15,15,15,15,24,25,24,25),
+       col=c("blue","lightgreen","red","gray","purple","orange","yellow","darkgreen"),
+       pt.bg=c("blue","lightgreen","red","gray","purple","orange","yellow","darkgreen"),
+       ncol=3,
+       cex=0.85)
+
+
+plot(group2_2$time, group2_2$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,200),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.5",
+     cex.main=1.6)
+points(group2_2$time, group2_2$Algae, col="lightgreen", pch=15,cex=0.75)
+points(group1_2$time, group1_2$Coral, col="red", pch=15)
+# points(group4_2$time, group4_2$Generalists, col="hotpink", pch=15,cex=0.75)
+points(group4_2$time, group4_2$Generalists, col="gray", pch=15,cex=0.75)
+points(group5_2$time, group5_2$Browsers, col="purple",bg="purple", pch=24,cex=0.75)
+points(group6_2$time, group6_2$Grazers, col="orange",bg="orange", pch=25,cex=0.75)
+points(group2_2$time, group2_2$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(group3_2$time, group3_2$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+
+
+
+plot(group2_3$time, group2_3$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,200),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.9",
+     cex.main=1.6)
+points(group2_3$time, group2_3$Algae, col="lightgreen", pch=15,cex=0.75)
+points(group1_3$time, group1_3$Coral, col="red", pch=15)
+# points(group4_3$time, group4_3$Generalists, col="hotpink", pch=15,cex=0.75)
+points(group4_3$time, group4_3$Generalists, col="gray", pch=15,cex=0.75)
+points(group5_3$time, group5_3$Browsers, col="purple",bg="purple", pch=24,cex=0.75)
+points(group6_3$time, group6_3$Grazers, col="orange",bg="orange", pch=25,cex=0.75)
+points(group2_3$time, group2_3$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(group3_3$time, group3_3$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+
+
+dev.off()
+
+```
+
+
+### November 2, 2021 - modifying new Panel C for Figure 1
+## Increase the time range shown to 1000 time units instead of only 200, but will only plot first 400
+
+```{r}
+# Need to reduce the number of data points to plot so the points are actually visible
+## subset time points at which to actually plot output....
+
+# group1_times<-seq(0,200,by=6)
+# group1_times<-seq(0,1000,by=30)
+group1_times<-seq(0,1000,by=10)
+#which state variables do I want in group 1?
+# Herbivores, Algae, Coral, Generalists
+group1_1<-subset(Exp_output,Exp_output$time %in% group1_times)
+group1_2<-subset(Exp_output_2,Exp_output$time %in% group1_times)
+group1_3<-subset(Exp_output_3,Exp_output$time %in% group1_times)
+
+#which state variables do I want in group 2?
+#Grazers, Turf
+# group2_times<-seq(3,200,by=6)
+# group2_times<-seq(15,1000,by=30)
+group2_times<-seq(7,1000,by=10)
+group2_1<-subset(Exp_output,Exp_output$time %in% group2_times)
+group2_2<-subset(Exp_output_2,Exp_output$time %in% group2_times)
+group2_3<-subset(Exp_output_3,Exp_output$time %in% group2_times)
+
+
+#which state variables do I want in group 3?
+#Browsers, Macroalgae
+# group3_times<-seq(1,200,by=6)
+# group3_times<-seq(5,1000,by=30)
+group3_times<-seq(3,1000,by=10)
+group3_1<-subset(Exp_output,Exp_output$time %in% group3_times)
+group3_2<-subset(Exp_output_2,Exp_output$time %in% group3_times)
+group3_3<-subset(Exp_output_3,Exp_output$time %in% group3_times)
+
+
+#Different times for the 3 different types of herbivores
+# group4_times<-seq(0,200,by=9)
+# group4_times<-seq(0,1000,by=45)
+group4_times<-seq(0,1000,by=22)
+group4_1<-subset(Exp_output,Exp_output$time %in% group4_times)
+group4_2<-subset(Exp_output_2,Exp_output$time %in% group4_times)
+group4_3<-subset(Exp_output_3,Exp_output$time %in% group4_times)
+
+# group5_times<-seq(3,200,by=9)
+# group5_times<-seq(15,1000,by=45)
+group5_times<-seq(7,1000,by=22)
+group5_1<-subset(Exp_output,Exp_output$time %in% group5_times)
+group5_2<-subset(Exp_output_2,Exp_output$time %in% group5_times)
+group5_3<-subset(Exp_output_3,Exp_output$time %in% group5_times)
+
+# group6_times<-seq(6,200,by=9)
+# group6_times<-seq(30,1000,by=45)
+group6_times<-seq(14,1000,by=22)
+group6_1<-subset(Exp_output,Exp_output$time %in% group6_times)
+group6_2<-subset(Exp_output_2,Exp_output$time %in% group6_times)
+group6_3<-subset(Exp_output_3,Exp_output$time %in% group6_times)
+
+
+## List of times from above for easier referencing and copying...
+# group1_times<-seq(0,1000,by=10)
+# group2_times<-seq(7,1000,by=10)
+# group3_times<-seq(3,1000,by=10)
+# group4_times<-seq(0,1000,by=22)
+# group5_times<-seq(7,1000,by=22)
+# group6_times<-seq(14,1000,by=22)
+
+
+
+## Making the figure
+
+# pdf("Fig_new1C_v1.pdf",width=3.75,height=7)
+# pdf("Fig_new1C_v2.pdf",width=3.75,height=7)
+# pdf("Fig_new1C_v3.pdf",width=3.75,height=7)
+pdf("Fig_new1C_v4.pdf",width=3.75,height=7)
+
+
+par(mfrow=c(3,1),
+    mar=c(4,5,2.5,2),
+    family = "Times")
+
+#quartz()
+plot(group2_1$time, group2_1$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,400),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.1",
+     cex.main=1.6)
+# points(group2_1$time, group2_1$Algae, col="lightgreen", pch=15,cex=0.75)
+points(group2_1$time, group2_1$Algae, col="lightgreen", pch=15,cex=1)
+points(group1_1$time, group1_1$Coral, col="red", pch=15)
+# points(group4_1$time, group4_1$Generalists, col="hotpink", pch=15,cex=0.75)
+# points(group4_1$time, group4_1$Generalists, col="gray", pch=20,cex=0.75)
+points(group4_1$time, group4_1$Generalists, col="deeppink2", pch=20,cex=1.2)
+points(group5_1$time, group5_1$Browsers, col="purple",bg="purple", pch=20,cex=1.2)
+points(group6_1$time, group6_1$Grazers, col="orange",bg="orange", pch=20,cex=1.2)
+points(group2_1$time, group2_1$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(group3_1$time, group3_1$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+legend(x=75,y=1.06,
+       # x=75,y=0.65,
+       c("Herbivores","Algae","Coral", "Generalists","Browsers","Grazers","Turf","Macroalgae"),
+       pch=c(15,15,15,20,20,20,24,25),
+       col=c("blue","lightgreen","red","deeppink2","purple","orange","yellow","darkgreen"),
+       pt.bg=c("blue","lightgreen","red","deeppink2","purple","orange","yellow","darkgreen"),
+       ncol=3,
+       cex=0.85,
+       bty = "n",   ## remove box around legend
+       pt.cex = c(1,1,1,1.2,1.2,1.2,0.75,0.75))
+
+
+plot(group2_2$time, group2_2$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,400),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.5",
+     cex.main=1.6)
+# points(group2_2$time, group2_2$Algae, col="lightgreen", pch=15,cex=0.75)
+points(group2_2$time, group2_2$Algae, col="lightgreen", pch=15,cex=1)
+points(group1_2$time, group1_2$Coral, col="red", pch=15)
+# points(group4_2$time, group4_2$Generalists, col="hotpink", pch=15,cex=0.75)
+points(group4_2$time, group4_2$Generalists, col="deeppink2", pch=20,cex=1.2)
+points(group5_2$time, group5_2$Browsers, col="purple",bg="purple", pch=20,cex=1.2)
+points(group6_2$time, group6_2$Grazers, col="orange",bg="orange", pch=20,cex=1.2)
+points(group2_2$time, group2_2$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(group3_2$time, group3_2$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+
+
+
+plot(group2_3$time, group2_3$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,400),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.9",
+     cex.main=1.6)
+# points(group2_3$time, group2_3$Algae, col="lightgreen", pch=15,cex=0.75)
+points(group2_3$time, group2_3$Algae, col="lightgreen", pch=15,cex=1)
+points(group1_3$time, group1_3$Coral, col="red", pch=15)
+# points(group4_3$time, group4_3$Generalists, col="hotpink", pch=15,cex=0.75)
+points(group4_3$time, group4_3$Generalists, col="deeppink2", pch=20,cex=1.2)
+points(group5_3$time, group5_3$Browsers, col="purple",bg="purple", pch=20,cex=1.2)
+points(group6_3$time, group6_3$Grazers, col="orange",bg="orange", pch=20,cex=1.2)
+points(group2_3$time, group2_3$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(group3_3$time, group3_3$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+
+
+dev.off()
+
+```
+
+
+
+
+
+
+
+## September 20, 2021 - Making new Panel d for Figure 1
+### Showing results over time, but only use fishing pressure = 0.5, and instead show different herbivore community scenarios
+
+```{r}
+# Set initial conditions
+
+G0<-0.3
+R0<-0.3
+B0<-0.3
+C0<-0.75
+T0<-0.1
+M0<-0.0
+S0 <- 1 - T0 - C0 - M0
+
+
+#have 'even' herbivore communities initially
+#set fishing pressure to 0.5 for all runs
+G0<-0.3
+R0<-0.3
+B0<-0.3
+hh_pars[16] = 0.5
+F1d_even<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+F1d_even=as.data.frame(F1d_even)
+F1d_even$Space= 1 - F1d_even$Coral - F1d_even$Turf - F1d_even$Macroalgae
+F1d_even$Herbivores = F1d_even$Grazers+F1d_even$Generalists+F1d_even$Browsers
+F1d_even$Algae = F1d_even$Turf+F1d_even$Macroalgae
+
+
+## Run the model again with same fishing pressure f = 0.5, but generalist-dominated herbivore community
+G0<-0.15
+R0<-0.6
+B0<-0.15
+hh_pars[16]=0.5
+F1d_genD<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+F1d_genD=as.data.frame(F1d_genD)
+F1d_genD$Space= 1 - F1d_genD$Coral - F1d_genD$Turf - F1d_genD$Macroalgae
+F1d_genD$Herbivores = F1d_genD$Grazers+F1d_genD$Generalists+F1d_genD$Browsers
+F1d_genD$Algae = F1d_genD$Turf+F1d_genD$Macroalgae
+#tail(F1d_genD)
+
+
+## Run the model again with same fishing pressure f = 0.5, but grazer-dominated herbivore community
+G0<-0.6
+R0<-0.15
+B0<-0.15
+hh_pars[16]=0.5
+F1d_grazD<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+F1d_grazD=as.data.frame(F1d_grazD)
+F1d_grazD$Space= 1 - F1d_grazD$Coral - F1d_grazD$Turf - F1d_grazD$Macroalgae
+F1d_grazD$Herbivores = F1d_grazD$Grazers+F1d_grazD$Generalists+F1d_grazD$Browsers
+F1d_grazD$Algae = F1d_grazD$Turf+F1d_grazD$Macroalgae
+#tail(F1d_grazD)
+
+
+
+## Run the model again with same fishing pressure f = 0.5, but browers-dominated herbivore community
+G0<-0.15
+R0<-0.15
+B0<-0.6
+hh_pars[16]=0.5
+F1d_browsD<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+F1d_browsD=as.data.frame(F1d_browsD)
+F1d_browsD$Space= 1 - F1d_browsD$Coral - F1d_browsD$Turf - F1d_browsD$Macroalgae
+F1d_browsD$Herbivores = F1d_browsD$Grazers+F1d_browsD$Generalists+F1d_browsD$Browsers
+F1d_browsD$Algae = F1d_browsD$Turf+F1d_browsD$Macroalgae
+#tail(F1d_browsD)
+
+```
+
+## Now plotting the figures
+
+```{r}
+# Need to reduce the number of data points to plot so the points are actually visible
+## subset time points at which to actually plot output....
+
+## List of times from Figure 1C above, so they match between panels C and D
+
+group1_times<-seq(0,1000,by=10)
+group2_times<-seq(7,1000,by=10)
+group3_times<-seq(3,1000,by=10)
+group4_times<-seq(0,1000,by=22)
+group5_times<-seq(7,1000,by=22)
+group6_times<-seq(14,1000,by=22)
+
+
+#group1_times<-seq(0,200,by=6)
+# group1_times<-seq(0,1000,by=30)
+#which state variables do I want in group 1?
+# Herbivores, Algae, Coral, Generalists
+group1_1<-subset(F1d_genD,F1d_genD$time %in% group1_times)
+group1_2<-subset(F1d_grazD,F1d_genD$time %in% group1_times)
+group1_3<-subset(F1d_browsD,F1d_genD$time %in% group1_times)
+
+#which state variables do I want in group 2?
+#Grazers, Turf
+#group2_times<-seq(3,200,by=6)
+# group2_times<-seq(15,1000,by=30)
+group2_1<-subset(F1d_genD,F1d_genD$time %in% group2_times)
+group2_2<-subset(F1d_grazD,F1d_genD$time %in% group2_times)
+group2_3<-subset(F1d_browsD,F1d_genD$time %in% group2_times)
+
+
+#which state variables do I want in group 3?
+#Browsers, Macroalgae
+#group3_times<-seq(1,200,by=6)
+# group3_times<-seq(5,1000,by=30)
+group3_1<-subset(F1d_genD,F1d_genD$time %in% group3_times)
+group3_2<-subset(F1d_grazD,F1d_genD$time %in% group3_times)
+group3_3<-subset(F1d_browsD,F1d_genD$time %in% group3_times)
+
+
+#Different times for the 3 different types of herbivores
+#group4_times<-seq(0,200,by=9)
+# group4_times<-seq(0,1000,by=45)
+group4_1<-subset(F1d_genD,F1d_genD$time %in% group4_times)
+group4_2<-subset(F1d_grazD,F1d_genD$time %in% group4_times)
+group4_3<-subset(F1d_browsD,F1d_genD$time %in% group4_times)
+
+#group5_times<-seq(3,200,by=9)
+# group5_times<-seq(15,1000,by=45)
+group5_1<-subset(F1d_genD,F1d_genD$time %in% group5_times)
+group5_2<-subset(F1d_grazD,F1d_genD$time %in% group5_times)
+group5_3<-subset(F1d_browsD,F1d_genD$time %in% group5_times)
+
+#group6_times<-seq(6,200,by=9)
+# group6_times<-seq(30,1000,by=45)
+group6_1<-subset(F1d_genD,F1d_genD$time %in% group6_times)
+group6_2<-subset(F1d_grazD,F1d_genD$time %in% group6_times)
+group6_3<-subset(F1d_browsD,F1d_genD$time %in% group6_times)
+
+
+#Making the figures
+
+pdf("Fig_1D_v4.pdf",width=3.75, height=7)
+
+
+par(mfrow=c(3,1),
+    mar=c(4,5,2.5,2),
+    family = "Times")
+
+#quartz()
+plot(group2_1$time, group2_1$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,400),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Generalist-dominated community",
+     cex.main=1.6)
+points(group2_1$time, group2_1$Algae, col="lightgreen", pch=15,cex=1)
+points(group1_1$time, group1_1$Coral, col="red", pch=15)
+# points(group4_1$time, group4_1$Generalists, col="hotpink", pch=15,cex=0.75)
+# points(group4_1$time, group4_1$Generalists, col="gray", pch=15,cex=0.75)
+points(group4_1$time, group4_1$Generalists, col="deeppink2", pch=20,cex=1.2)
+points(group5_1$time, group5_1$Browsers, col="purple",bg="purple", pch=20,cex=1.2)
+points(group6_1$time, group6_1$Grazers, col="orange",bg="orange", pch=20,cex=1.2)
+points(group2_1$time, group2_1$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(group3_1$time, group3_1$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+legend(x=75,y=1.06,
+       # x=75,y=1.04,
+       c("Herbivores","Algae","Coral", "Generalists","Browsers","Grazers","Turf","Macroalgae"),
+       pch=c(15,15,15,20,20,20,24,25),
+       col=c("blue","lightgreen","red","deeppink2","purple","orange","yellow","darkgreen"),
+       pt.bg=c("blue","lightgreen","red","deeppink2","purple","orange","yellow","darkgreen"),
+       ncol=3,
+       bty = "n",   ## remove box around legend
+       cex=0.85,
+       pt.cex = c(1,1,1,1.2,1.2,1.2,0.75,0.75))
+
+
+plot(group2_2$time, group2_2$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,400),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Grazer-dominated community",
+     cex.main=1.6)
+points(group2_2$time, group2_2$Algae, col="lightgreen", pch=15,cex=1)
+points(group1_2$time, group1_2$Coral, col="red", pch=15)
+points(group4_2$time, group4_2$Generalists, col="deeppink2", pch=20,cex=1.2)
+points(group5_2$time, group5_2$Browsers, col="purple",bg="purple", pch=20,cex=1.2)
+points(group6_2$time, group6_2$Grazers, col="orange",bg="orange", pch=20,cex=1.2)
+points(group2_2$time, group2_2$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(group3_2$time, group3_2$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+
+
+
+plot(group2_3$time, group2_3$Herbivores,
+     pch=15,
+     col = "blue",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,400),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Browser-dominated community",
+     cex.main=1.6)
+points(group2_3$time, group2_3$Algae, col="lightgreen", pch=15,cex=1)
+points(group1_3$time, group1_3$Coral, col="red", pch=15)
+points(group4_3$time, group4_3$Generalists, col="deeppink2", pch=20,cex=1.2)
+points(group5_3$time, group5_3$Browsers, col="purple",bg="purple", pch=20,cex=1.2)
+points(group6_3$time, group6_3$Grazers, col="orange",bg="orange", pch=20,cex=1.2)
+points(group2_3$time, group2_3$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+points(group3_3$time, group3_3$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+
+
+dev.off()
+
+
+
+
+### OLD CODE FOR MAKING PRIOR VERSIONS OF FIGURES
+
+# pdf("Paper_Fig_1_d_v3.pdf",width=3.75, height=7)
+# pdf("Fig_1D_v1.pdf",width=3.75, height=7)
+# pdf("Fig_1D_v2.pdf",width=3.75, height=7)
+# pdf("Fig_1D_v3.pdf",width=3.75, height=7)
+
+
+# par(mfrow=c(3,1),
+#     mar=c(4,5,2.5,2),
+#     family = "Times")
+# 
+# #quartz()
+# plot(group2_1$time, group2_1$Herbivores,
+#      pch=15,
+#      col = "blue",
+#      xlab="Time",
+#      ylab="Cover / Abundance",
+#      ylim=c(0,1),
+# #     xlim=c(0,200),
+#      xlim=c(0,1000),
+#      cex.lab=1.5,
+#      cex.axis=1.3,
+#      main = "Generalist-dominated community",
+#      cex.main=1.6)
+# points(group2_1$time, group2_1$Algae, col="lightgreen", pch=15,cex=0.75)
+# points(group1_1$time, group1_1$Coral, col="red", pch=15)
+# # points(group4_1$time, group4_1$Generalists, col="hotpink", pch=15,cex=0.75)
+# # points(group4_1$time, group4_1$Generalists, col="gray", pch=15,cex=0.75)
+# points(group4_1$time, group4_1$Generalists, col="turquoise", pch=15,cex=0.75)
+# points(group5_1$time, group5_1$Browsers, col="purple",bg="purple", pch=24,cex=0.75)
+# points(group6_1$time, group6_1$Grazers, col="orange",bg="orange", pch=25,cex=0.75)
+# points(group2_1$time, group2_1$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+# points(group3_1$time, group3_1$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+# legend(x=200,y=1.04,
+#        c("Herbivores","Algae","Coral", "Generalists","Browsers","Grazers","Turf","Macroalgae"),
+#        pch=c(15,15,15,15,24,25,24,25),
+#        col=c("blue","lightgreen","red","turquoise","purple","orange","yellow","darkgreen"),
+#        pt.bg=c("blue","lightgreen","red","turquoise","purple","orange","yellow","darkgreen"),
+#        ncol=3,
+#        bty = "n",   ## remove box around legend
+#        cex=0.85)
+# 
+# 
+# plot(group2_2$time, group2_2$Herbivores,
+#      pch=15,
+#      col = "blue",
+#      xlab="Time",
+#      ylab="Cover / Abundance",
+#      ylim=c(0,1),
+# #     xlim=c(0,200),
+#      xlim=c(0,1000),
+#      cex.lab=1.5,
+#      cex.axis=1.3,
+#      main = "Grazer-dominated community",
+#      cex.main=1.6)
+# points(group2_2$time, group2_2$Algae, col="lightgreen", pch=15,cex=0.75)
+# points(group1_2$time, group1_2$Coral, col="red", pch=15)
+# # points(group4_2$time, group4_2$Generalists, col="hotpink", pch=15,cex=0.75)
+# points(group4_2$time, group4_2$Generalists, col="turquoise", pch=15,cex=0.75)
+# points(group5_2$time, group5_2$Browsers, col="purple",bg="purple", pch=24,cex=0.75)
+# points(group6_2$time, group6_2$Grazers, col="orange",bg="orange", pch=25,cex=0.75)
+# points(group2_2$time, group2_2$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+# points(group3_2$time, group3_2$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+# 
+# 
+# 
+# plot(group2_3$time, group2_3$Herbivores,
+#      pch=15,
+#      col = "blue",
+#      xlab="Time",
+#      ylab="Cover / Abundance",
+#      ylim=c(0,1),
+# #     xlim=c(0,200),
+#      xlim=c(0,1000),
+#      cex.lab=1.5,
+#      cex.axis=1.3,
+#      main = "Browser-dominated community",
+#      cex.main=1.6)
+# points(group2_3$time, group2_3$Algae, col="lightgreen", pch=15,cex=0.75)
+# points(group1_3$time, group1_3$Coral, col="red", pch=15)
+# # points(group4_3$time, group4_3$Generalists, col="hotpink", pch=15,cex=0.75)
+# points(group4_3$time, group4_3$Generalists, col="turquoise", pch=15,cex=0.75)
+# points(group5_3$time, group5_3$Browsers, col="purple",bg="purple", pch=24,cex=0.75)
+# points(group6_3$time, group6_3$Grazers, col="orange",bg="orange", pch=25,cex=0.75)
+# points(group2_3$time, group2_3$Turf, col="yellow",bg="yellow", pch=24,cex=0.75)
+# points(group3_3$time, group3_3$Macroalgae, col="darkgreen",bg="darkgreen", pch=25,cex=0.75)
+# 
+# 
+# dev.off()
+
+```
+
+
+
+
+
+
