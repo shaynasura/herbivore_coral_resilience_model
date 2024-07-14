@@ -1,0 +1,287 @@
+---
+title: "Supplemental Figure S1 - Hysteresis of Recreated vdL ('basic') model"
+author: "Shayna Sura"
+date: "07/13/2024 - July 13, 2024"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+
+library(deSolve)
+library(ggplot2)
+library(reshape2)
+library(viridis)
+library(gridExtra)
+library(gtable)
+library(grid)
+
+
+```
+
+## Basic Model Set up
+
+To add a new chunk of R code, do option+command+i
+```{r Basic Model,echo=TRUE}
+
+#Set initial conditions for state variables
+H0<-0.9
+C0<-0.75
+A0<-0.1
+S0 <- 1 - C0 - A0
+
+state_vars<-c(HH=H0, CC=C0, AA=A0, SS=S0)
+
+#generate a series of times at which you want the ODE solver to output population sizes
+tseq<-seq(0,1000,by=0.1)
+
+#Generate a vector of parameter values
+pars<-c(bc<-0.3,
+        ba<- 0.8,
+        ic<-0.05,
+        ia<-0.05,
+        dc<-0.1,
+        r<-1,
+        g<-1,
+        eta<-1,
+        alpha<-0.5,
+        sigma<-0.6,
+        f<-0.1)
+
+Basic_Model<-function(tseq,state_vars,pars){
+  HH <- state_vars[1]
+  CC <- state_vars[2]
+  AA <- state_vars[3]
+  SS <- 1 - CC - AA
+  
+  bc <- pars[1]
+  ba <- pars[2]
+  ic <- pars[3]
+  ia <- pars[4]
+  dc <- pars[5]
+  r <- pars[6]
+  g <- pars[7]
+  eta <- pars[8]
+  alpha <- pars[9]
+  sigma <- pars[10]
+  f <- pars[11]
+  
+  dC_dt <- (ic + bc*CC)*SS*(1-alpha*AA)- dc*CC
+  dA_dt <-(ia + ba*AA)*SS - (g*HH*AA / (g*eta*AA+1))
+  dH_dt <-r*HH*(1 - (HH / ((1-sigma) + sigma*CC))) - f*HH
+
+  return(list(c(dH<- dH_dt,
+                dC <- dC_dt,
+                dA <- dA_dt)))
+}
+
+Basic_M_output<-lsoda(c(Herbivores=H0,Coral=C0,Algae=A0), tseq, Basic_Model, pars)
+Basic_M_output=as.data.frame(Basic_M_output)
+Basic_M_output$Space= 1 - Basic_M_output$Coral - Basic_M_output$Algae
+
+#head(Basic_M_output)
+#tail(Basic_M_output)
+
+```
+
+
+
+
+
+
+# Basic Model: Hysteresis Plot
+
+## Forward Simulations
+
+```{r}
+
+#Set up a for loop to run lsoda for each fishing pressure
+#Need to start each new run with where the system ENDED after the last run / loop
+
+f_values<-seq(0,1,by=0.005)
+tseq<-seq(0,1000,by=0.1)
+
+## set up a data frame to store the results I want
+Hysteresis_output<-data.frame(f_values)
+
+# Set up for loop to run lsoda with different initial conditions & different fishing pressures
+for(i in 1:length(f_values)){
+  if(i==1){
+    H0<-0.9
+    C0<-0.75
+    A0<-0.1
+    S0<-0.15
+    }
+  else{
+    H0<-tail(hh_output_new$Herbivores,1)
+    C0<-tail(hh_output_new$Coral,1)
+    A0<-tail(hh_output_new$Algae,1)
+    S0<-tail(hh_output_new$Space,1)
+  }
+  state_vars<-c(HH=H0, CC=C0, AA=A0, SS=S0)
+  pars[11]<-f_values[i] # set fishing pressure
+  hh_output<-lsoda(c(Herbivores=H0,Coral=C0,Algae=A0), tseq, Basic_Model, pars)
+  hh_output_new<-as.data.frame(hh_output)
+  hh_output_new$Space= 1 - hh_output_new$Coral - hh_output_new$Algae
+  
+  Hysteresis_output$Fishing[i]<-pars[11]
+  Hysteresis_output$Initial_Coral[i]<-C0
+  Hysteresis_output$Final_Coral[i]<-tail(hh_output_new$Coral,1)
+  Hysteresis_output$Final_Algae[i]<-tail(hh_output_new$Algae,1)
+  Hysteresis_output$Final_Herbivores[i]<-tail(hh_output_new$Herbivores,1)
+  Hysteresis_output$Final_Space[i]<-tail(hh_output_new$Space,1)
+}
+
+
+```
+
+
+
+
+## Reversing the Simulation
+
+```{r Reversing the Hysteresis Simulation}
+
+f_values_2<-rev(seq(0,1,by=0.005))
+tseq<-seq(0,1000,by=0.1)
+
+## set up a data frame to store the results I want
+Hysteresis_output_2<-data.frame(f_values_2)
+
+# Set up for loop to run lsoda with different initial conditions & different fishing pressures
+for(i in 1:length(f_values_2)){
+  if(i==1){
+    H0<-tail(Hysteresis_output$Final_Herbivores,1)
+    C0<-tail(Hysteresis_output$Final_Coral,1)
+    A0<-tail(Hysteresis_output$Final_Algae,1)
+    S0<-tail(Hysteresis_output$Final_Space,1)
+    
+    # H0<-0.9
+    # C0<-0.75
+    # A0<-0.1
+    # S0<-0.15
+    
+    }
+  else{
+    H0<-tail(hh_output_new2$Herbivores,1)
+    C0<-tail(hh_output_new2$Coral,1)
+    A0<-tail(hh_output_new2$Algae,1)
+    S0<-tail(hh_output_new2$Space,1)
+  }
+  state_vars<-c(HH=H0, CC=C0, AA=A0, SS=S0)
+  pars[11]<-f_values_2[i] # set fishing pressure
+  hh_output_2<-lsoda(c(Herbivores=H0,Coral=C0,Algae=A0), tseq, Basic_Model, pars)
+  hh_output_new2<-as.data.frame(hh_output_2)
+  hh_output_new2$Space= 1 - hh_output_new2$Coral - hh_output_new2$Algae
+  
+  Hysteresis_output_2$Fishing[i]<-pars[11]
+  Hysteresis_output_2$Initial_Coral[i]<-C0
+  Hysteresis_output_2$Final_Coral[i]<-tail(hh_output_new2$Coral,1)
+  Hysteresis_output_2$Final_Algae[i]<-tail(hh_output_new2$Algae,1)
+  Hysteresis_output_2$Final_Herbivores[i]<-tail(hh_output_new2$Herbivores,1)
+  Hysteresis_output_2$Final_Space[i]<-tail(hh_output_new$Space,1)
+}
+
+
+```
+
+
+
+
+## Determining the tipping points for the forward and the reverse simulation runs.
+
+```{r}
+
+# Calculate the difference in Final Coral cover between successive fishing pressures....then pull out the points with large jumps...
+# Forward simulation
+Basic_Final_Cover_Differences<-data.frame(Hysteresis_output$Fishing)
+for(i in 1:(length(Hysteresis_output$Final_Coral)-1)){
+  Basic_Final_Cover_Differences$Coral_Change[i]<-Hysteresis_output$Final_Coral[i+1] - Hysteresis_output$Final_Coral[i]
+}
+# view it (Basic_Final_Cover_Differences)
+
+length(which(Basic_Final_Cover_Differences$Coral_Change< -0.05))
+
+#find the point where there's the largest difference in Final_Coral values between two points
+max_dif <- min(Basic_Final_Cover_Differences$Coral_Change)
+which(Basic_Final_Cover_Differences$Coral_Change == max_dif)
+Basic_Final_Cover_Differences[103,]
+Basic_Final_Cover_Differences$Hysteresis_output.Fishing[103]
+
+## use fishing pressure = 0.510 as the starting point for the dotted line for the forward simulation
+
+
+# Calculate the difference in Final Coral cover between successive fishing pressures for the reverse simulation
+Basic_Final_Cover_Differences_2<-data.frame(Hysteresis_output_2$Fishing)
+for(i in 1:(length(Hysteresis_output_2$Final_Coral)-1)){
+  Basic_Final_Cover_Differences_2$Coral_Change[i]<-Hysteresis_output_2$Final_Coral[i+1] - Hysteresis_output_2$Final_Coral[i]
+}
+# view it Basic_Final_Cover_Differences_2
+
+
+#find the point where there's the largest difference in Final_Coral values between two points
+max_dif <- max(Basic_Final_Cover_Differences_2$Coral_Change)
+which(Basic_Final_Cover_Differences_2$Coral_Change == max_dif)
+Basic_Final_Cover_Differences_2[135,]
+Basic_Final_Cover_Differences_2$Hysteresis_output_2.Fishing[135]
+
+## use fishing pressure = 0.33 as the starting point for the dotted line for the reverse simulation
+
+
+```
+
+
+## Plotting the Hysteresis Figure with forward and backward simulations
+
+```{r}
+
+
+## subset time points at which to actually plot output....
+coral_forward_connect<-subset(Hysteresis_output,Hysteresis_output$Fishing==0.510)
+coral_backward_connect<-subset(Hysteresis_output_2,Hysteresis_output_2$Fishing==0.330)
+colnames(coral_backward_connect)<-c("f_values","Fishing","Initial_Coral","Final_Coral","Final_Algae","Final_Herbivores","Final_Space","Id")
+coral_connect<-rbind(coral_forward_connect,coral_backward_connect)
+
+
+
+# Save a PDF file of the figure
+pdf("../../output/figures/fig_S1_b.pdf",width=7,height=6)
+
+
+#quartz()
+plot(Hysteresis_output$Fishing[1:103],Hysteresis_output$Final_Coral[1:103],
+     type = "l",
+     col = "red",
+     lwd=6,
+     xlab="Fishing Pressure",
+     ylab="",
+     ylim=c(0,1),
+     xlim=c(0,1),
+     cex.lab=1.75,
+     cex.axis=1.4,
+     cex.main=1)
+
+title(ylab="Cover / Abundance", mgp=c(2.5,1,0), cex.lab=1.75)
+lines(Hysteresis_output_2$Fishing[1:135], Hysteresis_output_2$Final_Coral[1:135], col="red", lwd=6)
+lines(coral_connect$Fishing,coral_connect$Final_Coral, lty = 2, col="red", lwd=6)
+
+lines(Hysteresis_output$Fishing[1:103], Hysteresis_output$Final_Algae[1:103], col="green", lwd=6)
+lines(Hysteresis_output_2$Fishing[1:135], Hysteresis_output_2$Final_Algae[1:135], col="green", lwd=6)
+lines(coral_connect$Fishing,coral_connect$Final_Algae, lty = 2, col="green", lwd=6)
+
+lines(Hysteresis_output$Fishing[1:103], Hysteresis_output$Final_Herbivores[1:103], col="blue", lwd=6)
+lines(Hysteresis_output_2$Fishing[1:135], Hysteresis_output_2$Final_Herbivores[1:135], col="blue", lwd=6)
+lines(coral_connect$Fishing,coral_connect$Final_Herbivores, lty = 2, col="blue", lwd=6)
+legend("topleft",
+       c("Herbivores","Algae","Coral"),
+       lty=1,
+       lwd=4,
+       col=c("blue","green","red"),
+       cex=1)
+
+
+# dev.off()
+
+
+```
+
+

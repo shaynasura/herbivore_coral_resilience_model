@@ -1,0 +1,788 @@
+---
+title: "5.2_hysteresis"
+author: "Shayna A. Sura"
+date: "2024-07-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+# library(gtable)
+# library(grid)
+
+
+library(deSolve)
+library(reshape2)
+library(viridis)
+library(gridExtra)
+library(tidyverse) # includes and loads the packages listed below
+# library(readr)
+# library(tidyr)
+# library(dplyr)
+# library(ggplot2)
+# library(lubridate)
+
+library(here) # helps with paths for files
+
+library(purrr) # vectorized coding approaches for faster analyses
+
+library(scales)
+
+
+```
+
+
+#### Phase 2 Model Set up
+
+```{r Phase 2 Model}
+
+# Initial Conditions
+G0<-0.45
+R0<-0
+B0<-0.45
+C0<-0.75
+T0<-0.05
+M0<-0.05
+S0 <- 1 - T0 - C0 - M0
+
+
+# set state variables
+P2_state_vars<-c(GG=G0, RR=R0, BB=B0, CC=C0, TT=T0, MM=M0, SS=S0)
+
+#generate a series of times at which you want the ODE solver to output population sizes
+P2_tseq<-seq(0,1000,by=0.1)
+
+#Generate a vector of parameter values
+P2_pars<-c(bc<-0.3,
+           bt<-0.8,      #use the same value as bm from basic model
+           bm<-0.8,      #use the same value as bm from basic model
+           ic<-0.05,
+           it<-0.025,    #need two of these, one for turf and one for macroalgae
+           im<-0.025,    #need two of these, one for turf and one for macroalgae
+           dc<-0.1,
+           r<-1,
+           # gt<-1,       #need two of these, one for turf and one for macroalgae
+           # gm<-1,       #need two of these, one for turf and one for macroalgae
+           gt<-2,       #need two of these, one for turf and one for macroalgae
+           gm<-2,       #need two of these, one for turf and one for macroalgae
+           etaT<-1,     #need two of these, one for turf and one for macroalgae
+           etaM<-1,     #need two of these, one for turf and one for macroalgae
+           alphaT<-0.5,
+           alphaM<-0.5,
+           sigma<-0.6,
+           f<-0.1,
+           gamma<-0)
+
+P2_Model<-function(P2_tseq,P2_state_vars,P2_pars){
+  GG <- P2_state_vars[1]
+  RR <- P2_state_vars[2]
+  BB <- P2_state_vars[3]
+  CC <- P2_state_vars[4]
+  TT <- P2_state_vars[5]
+  MM <- P2_state_vars[6]
+  SS <- 1 - CC - TT - MM
+  
+  bc <- P2_pars[1]
+  bt <- P2_pars[2]
+  bm <- P2_pars[3]
+  ic <- P2_pars[4]
+  it <- P2_pars[5]
+  im <- P2_pars[6]
+  dc <- P2_pars[7]
+  r <- P2_pars[8]
+  gt <- P2_pars[9]
+  gm <- P2_pars[10]
+  etaT <- P2_pars[11]
+  etaM <- P2_pars[12]
+  alphaT <- P2_pars[13]
+  alphaM <- P2_pars[14]
+  sigma <- P2_pars[15]
+  f <- P2_pars[16]
+  gamma <- P2_pars[17]
+  
+  dG_dt <-r*GG*(1 - ((GG+RR+BB) / ((1-sigma) + sigma*CC))) - f*GG
+  dR_dt <-r*RR*(1 - ((GG+RR+BB) / ((1-sigma) + sigma*CC))) - f*RR
+  dB_dt <-r*BB*(1 - ((GG+RR+BB) / ((1-sigma) + sigma*CC))) - f*BB
+  dC_dt <- (ic + bc*CC)*SS*(1-(alphaT*TT+alphaM*MM)) - dc*CC
+  dT_dt <- (it + bt*TT)*(SS) - (gamma*TT) - (((gt*GG*TT) / (gt*etaT*TT+1)) + ((gt*RR*TT)/(gt*etaT*TT+gm*etaM*MM+1)))
+  dM_dt <- (im + bm*MM)*(SS) + (gamma*TT) - (((gm*BB*MM) / (gm*etaM*MM+1)) + ((gm*RR*MM)/(gt*etaT*TT+gm*etaM*MM+1)))
+
+
+  return(list(c(dG <- dG_dt,
+                dR <- dR_dt,
+                dB <- dB_dt,
+                dC <- dC_dt,
+                dT <- dT_dt,
+                dM <- dM_dt)))
+}
+
+P2_output<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, P2_pars)
+P2_output=as.data.frame(P2_output)
+
+
+P2_output$Space= 1 - P2_output$Coral - P2_output$Turf - P2_output$Macroalgae
+P2_output$Herbivores = P2_output$Grazers+P2_output$Generalists+P2_output$Browsers
+P2_output$Algae = P2_output$Turf+P2_output$Macroalgae
+
+
+
+```
+
+
+
+## hh_pars   Parameter values actually used for our expanded model
+
+```{r}
+
+#Generate a vector of parameter values - for our model
+hh_pars<-c(bc<-0.3, bt<-0.8, bm<-0.5,      #expansion of current benthic cover
+           ic<-0.05, it<-0.05, im<-0,     #import of propagules
+           dc<-0.1,                       #coral mortality
+           r<-1,                          #herbivore growth rate
+           # gt<-1, gm<-0.5,                #algae mortality
+           gt<-2, gm<-1,                #algae mortality
+           etaT<-0, etaM<-1,              #algae handling time
+           alphaT<-0.25, alphaM<-0.5,     #competitive effect on coral
+           sigma<-0.6,                    #relationship between coral & herbivores
+           f<-0.5,                        #fishing pressure
+           gamma<-0.1)                    #transition from turf to macroalgae
+
+
+```
+
+
+
+
+# Expanded Model Hysteresis Plot
+## Test the hysteresis of my expanded model using the initial conditions and parameter values that I selected based on various assumptions
+
+### Part 1: just exploring the model with the different parameter values but keeping the initial conditions the same. Will explore different herbivore community scenarios in Part 2.
+
+```{r}
+
+# Set up a for loop to run lsoda for each fishing pressure
+# Need to start each new run with where the system ENDED after the last run / loop
+
+f_values<-seq(0,1,by=0.005)
+P2_tseq<-seq(0,1000,by=0.1)
+
+#tseq<-seq(0,100,by=0.1)
+
+## set up a data frame to store the results I want
+Exp_Hysteresis_output_real<-data.frame(f_values)
+
+# Set up for loop to run lsoda with different initial conditions & different fishing pressures
+for(i in 1:length(f_values)){
+  if(i==1){
+    G0<-0.3
+    R0<-0.3
+    B0<-0.3
+    C0<-0.75
+    T0<-0.05
+    M0<-0.05
+    S0 <- 1 - T0 - C0 - M0
+    }
+  else{
+    G0<-tail(P2_output_new$Grazers,1)
+    R0<-tail(P2_output_new$Generalists,1)
+    B0<-tail(P2_output_new$Browsers,1)
+    C0<-tail(P2_output_new$Coral,1)
+    T0<-tail(P2_output_new$Turf,1)
+    M0<-tail(P2_output_new$Macroalgae,1)
+    S0<-tail(P2_output_new$Space,1)
+  }
+  P2_state_vars<-c(GG=G0, RR=R0, BB=B0, CC=C0, TT=T0, MM=M0, SS=S0)
+  hh_pars[16]<-f_values[i] # set fishing pressure
+  P2_output<-lsoda(c(Grazers=G0, Generalists=R0, Browsers=B0,
+                     Coral=C0, Turf=T0, Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+  P2_output_new<-as.data.frame(P2_output)
+  P2_output_new$Space = 1 - P2_output_new$Coral - P2_output_new$Turf - P2_output_new$Macroalgae
+  P2_output_new$Algae = P2_output_new$Turf + P2_output_new$Macroalgae
+  P2_output_new$Herbivores = P2_output_new$Grazers + P2_output_new$Generalists + P2_output_new$Browsers
+  
+  
+  Exp_Hysteresis_output_real$Fishing[i]<-hh_pars[16]
+  Exp_Hysteresis_output_real$Initial_Coral[i]<-C0
+  Exp_Hysteresis_output_real$Final_Coral[i]<-tail(P2_output_new$Coral,1)
+  Exp_Hysteresis_output_real$Final_Turf[i]<-tail(P2_output_new$Turf,1)
+  Exp_Hysteresis_output_real$Final_Macroalgae[i]<-tail(P2_output_new$Macroalgae,1)
+  Exp_Hysteresis_output_real$Final_Algae[i]<-tail(P2_output_new$Algae,1)
+  Exp_Hysteresis_output_real$Final_Grazers[i]<-tail(P2_output_new$Grazers,1)
+  Exp_Hysteresis_output_real$Final_Generalists[i]<-tail(P2_output_new$Generalists,1)
+  Exp_Hysteresis_output_real$Final_Browsers[i]<-tail(P2_output_new$Browsers,1)
+  Exp_Hysteresis_output_real$Final_Herbivores[i]<-tail(P2_output_new$Herbivores,1)
+  Exp_Hysteresis_output_real$Final_Space[i]<-tail(P2_output_new$Space,1)
+}
+
+
+
+
+# Reversing the simulation
+
+#f_values<-seq(0,1,by=0.005)
+f_values_2<-rev(seq(0,1,by=0.005))
+P2_tseq<-seq(0,1000,by=0.1)
+
+#tseq<-seq(0,100,by=0.1)
+
+## set up a data frame to store the results I want
+Exp_Hysteresis_output_real_rev<-data.frame(f_values_2)
+
+# Set up for loop to run lsoda with different initial conditions & different fishing pressures
+for(i in 1:length(f_values_2)){
+  if(i==1){
+    G0<-tail(Exp_Hysteresis_output_real$Final_Grazers,1)
+    R0<-tail(Exp_Hysteresis_output_real$Final_Generalists,1)
+    B0<-tail(Exp_Hysteresis_output_real$Final_Browsers,1)
+    C0<-tail(Exp_Hysteresis_output_real$Final_Coral,1)
+    T0<-tail(Exp_Hysteresis_output_real$Final_Turf,1)
+    M0<-tail(Exp_Hysteresis_output_real$Final_Macroalgae,1)
+    S0<-tail(Exp_Hysteresis_output_real$Final_Space,1)
+    
+    # G0<-0.3
+    # R0<-0.3
+    # B0<-0.3
+    # C0<-0.75
+    # T0<-0.05
+    # M0<-0.05
+    # S0 <- 1 - T0 - C0 - M0
+    }
+  else{
+    G0<-tail(P2_output_new$Grazers,1)
+    R0<-tail(P2_output_new$Generalists,1)
+    B0<-tail(P2_output_new$Browsers,1)
+    C0<-tail(P2_output_new$Coral,1)
+    T0<-tail(P2_output_new$Turf,1)
+    M0<-tail(P2_output_new$Macroalgae,1)
+    S0<-tail(P2_output_new$Space,1)
+  }
+  P2_state_vars<-c(GG=G0, RR=R0, BB=B0, CC=C0, TT=T0, MM=M0, SS=S0)
+  hh_pars[16]<-f_values_2[i] # set fishing pressure
+  P2_output<-lsoda(c(Grazers=G0, Generalists=R0, Browsers=B0,
+                     Coral=C0, Turf=T0, Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+  P2_output_new<-as.data.frame(P2_output)
+  P2_output_new$Space = 1 - P2_output_new$Coral - P2_output_new$Turf - P2_output_new$Macroalgae
+  P2_output_new$Algae = P2_output_new$Turf + P2_output_new$Macroalgae
+  P2_output_new$Herbivores = P2_output_new$Grazers + P2_output_new$Generalists + P2_output_new$Browsers
+  
+  
+  Exp_Hysteresis_output_real_rev$Fishing[i]<-hh_pars[16]
+  Exp_Hysteresis_output_real_rev$Initial_Coral[i]<-C0
+  Exp_Hysteresis_output_real_rev$Final_Coral[i]<-tail(P2_output_new$Coral,1)
+  Exp_Hysteresis_output_real_rev$Final_Turf[i]<-tail(P2_output_new$Turf,1)
+  Exp_Hysteresis_output_real_rev$Final_Macroalgae[i]<-tail(P2_output_new$Macroalgae,1)
+  Exp_Hysteresis_output_real_rev$Final_Algae[i]<-tail(P2_output_new$Algae,1)
+  Exp_Hysteresis_output_real_rev$Final_Grazers[i]<-tail(P2_output_new$Grazers,1)
+  Exp_Hysteresis_output_real_rev$Final_Generalists[i]<-tail(P2_output_new$Generalists,1)
+  Exp_Hysteresis_output_real_rev$Final_Browsers[i]<-tail(P2_output_new$Browsers,1)
+  Exp_Hysteresis_output_real_rev$Final_Herbivores[i]<-tail(P2_output_new$Herbivores,1)
+  Exp_Hysteresis_output_real_rev$Final_Space[i]<-tail(P2_output_new$Space,1)
+}
+
+```
+
+
+## Expanded Model Part 2a: High Browsers Scenario
+# B0<-0.6
+# R0<-0.15
+# G0<-0.15
+
+```{r Expanded Hysteresis High Browsers}
+
+# Initial conditions for High Browsers Scenario
+# B0<-0.6
+# R0<-0.15
+# G0<-0.15
+
+# Set up a for loop to run lsoda for each fishing pressure
+# Need to start each new run with where the system ENDED after the last run / loop
+
+f_values<-seq(0,1,by=0.005)
+P2_tseq<-seq(0,1000,by=0.1)
+
+#tseq<-seq(0,100,by=0.1)
+
+## set up a data frame to store the results I want
+Browsers_Exp_Hyst_output<-data.frame(f_values)
+
+# Set up for loop to run lsoda with different initial conditions & different fishing pressures
+for(i in 1:length(f_values)){
+  if(i==1){
+    B0<-0.6
+    R0<-0.15
+    G0<-0.15
+    C0<-0.75
+    T0<-0.05
+    M0<-0.05
+    S0 <- 1 - T0 - C0 - M0
+    }
+  else{
+    G0<-tail(P2_output_new$Grazers,1)
+    R0<-tail(P2_output_new$Generalists,1)
+    B0<-tail(P2_output_new$Browsers,1)
+    C0<-tail(P2_output_new$Coral,1)
+    T0<-tail(P2_output_new$Turf,1)
+    M0<-tail(P2_output_new$Macroalgae,1)
+    S0<-tail(P2_output_new$Space,1)
+  }
+  P2_state_vars<-c(GG=G0, RR=R0, BB=B0, CC=C0, TT=T0, MM=M0, SS=S0)
+  hh_pars[16]<-f_values[i] # set fishing pressure
+  P2_output<-lsoda(c(Grazers=G0, Generalists=R0, Browsers=B0,
+                     Coral=C0, Turf=T0, Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+  P2_output_new<-as.data.frame(P2_output)
+  P2_output_new$Space = 1 - P2_output_new$Coral - P2_output_new$Turf - P2_output_new$Macroalgae
+  P2_output_new$Algae = P2_output_new$Turf + P2_output_new$Macroalgae
+  P2_output_new$Herbivores = P2_output_new$Grazers + P2_output_new$Generalists + P2_output_new$Browsers
+  
+  
+  Browsers_Exp_Hyst_output$Fishing[i]<-hh_pars[16]
+  Browsers_Exp_Hyst_output$Initial_Coral[i]<-C0
+  Browsers_Exp_Hyst_output$Final_Coral[i]<-tail(P2_output_new$Coral,1)
+  Browsers_Exp_Hyst_output$Final_Turf[i]<-tail(P2_output_new$Turf,1)
+  Browsers_Exp_Hyst_output$Final_Macroalgae[i]<-tail(P2_output_new$Macroalgae,1)
+  Browsers_Exp_Hyst_output$Final_Algae[i]<-tail(P2_output_new$Algae,1)
+  Browsers_Exp_Hyst_output$Final_Grazers[i]<-tail(P2_output_new$Grazers,1)
+  Browsers_Exp_Hyst_output$Final_Generalists[i]<-tail(P2_output_new$Generalists,1)
+  Browsers_Exp_Hyst_output$Final_Browsers[i]<-tail(P2_output_new$Browsers,1)
+  Browsers_Exp_Hyst_output$Final_Herbivores[i]<-tail(P2_output_new$Herbivores,1)
+  Browsers_Exp_Hyst_output$Final_Space[i]<-tail(P2_output_new$Space,1)
+}
+
+
+
+
+# Reversing the simulation
+
+#f_values<-seq(0,1,by=0.005)
+f_values_2<-rev(seq(0,1,by=0.005))
+P2_tseq<-seq(0,1000,by=0.1)
+
+#tseq<-seq(0,100,by=0.1)
+
+## set up a data frame to store the results I want
+Browsers_Exp_Hyst_output_rev<-data.frame(f_values_2)
+
+# Set up for loop to run lsoda with different initial conditions & different fishing pressures
+for(i in 1:length(f_values_2)){
+  if(i==1){
+    G0<-tail(Browsers_Exp_Hyst_output$Final_Grazers,1)
+    R0<-tail(Browsers_Exp_Hyst_output$Final_Generalists,1)
+    B0<-tail(Browsers_Exp_Hyst_output$Final_Browsers,1)
+    C0<-tail(Browsers_Exp_Hyst_output$Final_Coral,1)
+    T0<-tail(Browsers_Exp_Hyst_output$Final_Turf,1)
+    M0<-tail(Browsers_Exp_Hyst_output$Final_Macroalgae,1)
+    S0<-tail(Browsers_Exp_Hyst_output$Final_Space,1)
+    
+    # B0<-0.6
+    # R0<-0.15
+    # G0<-0.15
+    # C0<-0.75
+    # T0<-0.05
+    # M0<-0.05
+    # S0 <- 1 - T0 - C0 - M0
+    }
+  else{
+    G0<-tail(P2_output_new$Grazers,1)
+    R0<-tail(P2_output_new$Generalists,1)
+    B0<-tail(P2_output_new$Browsers,1)
+    C0<-tail(P2_output_new$Coral,1)
+    T0<-tail(P2_output_new$Turf,1)
+    M0<-tail(P2_output_new$Macroalgae,1)
+    S0<-tail(P2_output_new$Space,1)
+  }
+  P2_state_vars<-c(GG=G0, RR=R0, BB=B0, CC=C0, TT=T0, MM=M0, SS=S0)
+  hh_pars[16]<-f_values_2[i] # set fishing pressure
+  P2_output<-lsoda(c(Grazers=G0, Generalists=R0, Browsers=B0,
+                     Coral=C0, Turf=T0, Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+  P2_output_new<-as.data.frame(P2_output)
+  P2_output_new$Space = 1 - P2_output_new$Coral - P2_output_new$Turf - P2_output_new$Macroalgae
+  P2_output_new$Algae = P2_output_new$Turf + P2_output_new$Macroalgae
+  P2_output_new$Herbivores = P2_output_new$Grazers + P2_output_new$Generalists + P2_output_new$Browsers
+  
+  
+  Browsers_Exp_Hyst_output_rev$Fishing[i]<-hh_pars[16]
+  Browsers_Exp_Hyst_output_rev$Initial_Coral[i]<-C0
+  Browsers_Exp_Hyst_output_rev$Final_Coral[i]<-tail(P2_output_new$Coral,1)
+  Browsers_Exp_Hyst_output_rev$Final_Turf[i]<-tail(P2_output_new$Turf,1)
+  Browsers_Exp_Hyst_output_rev$Final_Macroalgae[i]<-tail(P2_output_new$Macroalgae,1)
+  Browsers_Exp_Hyst_output_rev$Final_Algae[i]<-tail(P2_output_new$Algae,1)
+  Browsers_Exp_Hyst_output_rev$Final_Grazers[i]<-tail(P2_output_new$Grazers,1)
+  Browsers_Exp_Hyst_output_rev$Final_Generalists[i]<-tail(P2_output_new$Generalists,1)
+  Browsers_Exp_Hyst_output_rev$Final_Browsers[i]<-tail(P2_output_new$Browsers,1)
+  Browsers_Exp_Hyst_output_rev$Final_Herbivores[i]<-tail(P2_output_new$Herbivores,1)
+  Browsers_Exp_Hyst_output_rev$Final_Space[i]<-tail(P2_output_new$Space,1)
+}
+
+```
+
+
+
+## Expanded Model Part 2b: High Generalists Scenario
+# B0<-0.15
+# R0<-0.6
+# G0<-0.15
+
+```{r Expanded Hysteresis High Generalists}
+
+# Initial conditions for High Generalists Scenario
+# B0<-0.15
+# R0<-0.6
+# G0<-0.15
+
+# Set up a for loop to run lsoda for each fishing pressure
+# Need to start each new run with where the system ENDED after the last run / loop
+
+f_values<-seq(0,1,by=0.005)
+P2_tseq<-seq(0,1000,by=0.1)
+
+#tseq<-seq(0,100,by=0.1)
+
+## set up a data frame to store the results I want
+Generalists_Exp_Hyst_output<-data.frame(f_values)
+
+# Set up for loop to run lsoda with different initial conditions & different fishing pressures
+for(i in 1:length(f_values)){
+  if(i==1){
+    B0<-0.15
+    R0<-0.6
+    G0<-0.15
+    C0<-0.75
+    T0<-0.05
+    M0<-0.05
+    S0 <- 1 - T0 - C0 - M0
+    }
+  else{
+    G0<-tail(P2_output_new$Grazers,1)
+    R0<-tail(P2_output_new$Generalists,1)
+    B0<-tail(P2_output_new$Browsers,1)
+    C0<-tail(P2_output_new$Coral,1)
+    T0<-tail(P2_output_new$Turf,1)
+    M0<-tail(P2_output_new$Macroalgae,1)
+    S0<-tail(P2_output_new$Space,1)
+  }
+  P2_state_vars<-c(GG=G0, RR=R0, BB=B0, CC=C0, TT=T0, MM=M0, SS=S0)
+  hh_pars[16]<-f_values[i] # set fishing pressure
+  P2_output<-lsoda(c(Grazers=G0, Generalists=R0, Browsers=B0,
+                     Coral=C0, Turf=T0, Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+  P2_output_new<-as.data.frame(P2_output)
+  P2_output_new$Space = 1 - P2_output_new$Coral - P2_output_new$Turf - P2_output_new$Macroalgae
+  P2_output_new$Algae = P2_output_new$Turf + P2_output_new$Macroalgae
+  P2_output_new$Herbivores = P2_output_new$Grazers + P2_output_new$Generalists + P2_output_new$Browsers
+  
+  
+  Generalists_Exp_Hyst_output$Fishing[i]<-hh_pars[16]
+  Generalists_Exp_Hyst_output$Initial_Coral[i]<-C0
+  Generalists_Exp_Hyst_output$Final_Coral[i]<-tail(P2_output_new$Coral,1)
+  Generalists_Exp_Hyst_output$Final_Turf[i]<-tail(P2_output_new$Turf,1)
+  Generalists_Exp_Hyst_output$Final_Macroalgae[i]<-tail(P2_output_new$Macroalgae,1)
+  Generalists_Exp_Hyst_output$Final_Algae[i]<-tail(P2_output_new$Algae,1)
+  Generalists_Exp_Hyst_output$Final_Grazers[i]<-tail(P2_output_new$Grazers,1)
+  Generalists_Exp_Hyst_output$Final_Generalists[i]<-tail(P2_output_new$Generalists,1)
+  Generalists_Exp_Hyst_output$Final_Browsers[i]<-tail(P2_output_new$Browsers,1)
+  Generalists_Exp_Hyst_output$Final_Herbivores[i]<-tail(P2_output_new$Herbivores,1)
+  Generalists_Exp_Hyst_output$Final_Space[i]<-tail(P2_output_new$Space,1)
+}
+
+
+
+
+# Reversing the simulation
+
+#f_values<-seq(0,1,by=0.005)
+f_values_2<-rev(seq(0,1,by=0.005))
+P2_tseq<-seq(0,1000,by=0.1)
+
+#tseq<-seq(0,100,by=0.1)
+
+## set up a data frame to store the results I want
+Generalists_Exp_Hyst_output_rev<-data.frame(f_values_2)
+
+# Set up for loop to run lsoda with different initial conditions & different fishing pressures
+for(i in 1:length(f_values_2)){
+  if(i==1){
+    G0<-tail(Generalists_Exp_Hyst_output$Final_Grazers,1)
+    R0<-tail(Generalists_Exp_Hyst_output$Final_Generalists,1)
+    B0<-tail(Generalists_Exp_Hyst_output$Final_Browsers,1)
+    C0<-tail(Generalists_Exp_Hyst_output$Final_Coral,1)
+    T0<-tail(Generalists_Exp_Hyst_output$Final_Turf,1)
+    M0<-tail(Generalists_Exp_Hyst_output$Final_Macroalgae,1)
+    S0<-tail(Generalists_Exp_Hyst_output$Final_Space,1)
+    
+    # B0<-0.15
+    # R0<-0.6
+    # G0<-0.15
+    # C0<-0.75
+    # T0<-0.05
+    # M0<-0.05
+    # S0 <- 1 - T0 - C0 - M0
+    }
+  else{
+    G0<-tail(P2_output_new$Grazers,1)
+    R0<-tail(P2_output_new$Generalists,1)
+    B0<-tail(P2_output_new$Browsers,1)
+    C0<-tail(P2_output_new$Coral,1)
+    T0<-tail(P2_output_new$Turf,1)
+    M0<-tail(P2_output_new$Macroalgae,1)
+    S0<-tail(P2_output_new$Space,1)
+  }
+  P2_state_vars<-c(GG=G0, RR=R0, BB=B0, CC=C0, TT=T0, MM=M0, SS=S0)
+  hh_pars[16]<-f_values_2[i] # set fishing pressure
+  P2_output<-lsoda(c(Grazers=G0, Generalists=R0, Browsers=B0,
+                     Coral=C0, Turf=T0, Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+  P2_output_new<-as.data.frame(P2_output)
+  P2_output_new$Space = 1 - P2_output_new$Coral - P2_output_new$Turf - P2_output_new$Macroalgae
+  P2_output_new$Algae = P2_output_new$Turf + P2_output_new$Macroalgae
+  P2_output_new$Herbivores = P2_output_new$Grazers + P2_output_new$Generalists + P2_output_new$Browsers
+  
+  
+  Generalists_Exp_Hyst_output_rev$Fishing[i]<-hh_pars[16]
+  Generalists_Exp_Hyst_output_rev$Initial_Coral[i]<-C0
+  Generalists_Exp_Hyst_output_rev$Final_Coral[i]<-tail(P2_output_new$Coral,1)
+  Generalists_Exp_Hyst_output_rev$Final_Turf[i]<-tail(P2_output_new$Turf,1)
+  Generalists_Exp_Hyst_output_rev$Final_Macroalgae[i]<-tail(P2_output_new$Macroalgae,1)
+  Generalists_Exp_Hyst_output_rev$Final_Algae[i]<-tail(P2_output_new$Algae,1)
+  Generalists_Exp_Hyst_output_rev$Final_Grazers[i]<-tail(P2_output_new$Grazers,1)
+  Generalists_Exp_Hyst_output_rev$Final_Generalists[i]<-tail(P2_output_new$Generalists,1)
+  Generalists_Exp_Hyst_output_rev$Final_Browsers[i]<-tail(P2_output_new$Browsers,1)
+  Generalists_Exp_Hyst_output_rev$Final_Herbivores[i]<-tail(P2_output_new$Herbivores,1)
+  Generalists_Exp_Hyst_output_rev$Final_Space[i]<-tail(P2_output_new$Space,1)
+}
+
+```
+
+
+## Expanded Model Part 2c: High Grazers Scenario
+# B0<-0.15
+# R0<-0.15
+# G0<-0.6
+
+```{r Expanded Hysteresis High Grazers}
+
+# Initial conditions for High Grazers Scenario
+# B0<-0.15
+# R0<-0.15
+# G0<-0.6
+
+
+# Set up a for loop to run lsoda for each fishing pressure
+# Need to start each new run with where the system ENDED after the last run / loop
+
+f_values<-seq(0,1,by=0.005)
+P2_tseq<-seq(0,1000,by=0.1)
+
+## set up a data frame to store the results I want
+Grazers_Exp_Hyst_output<-data.frame(f_values)
+
+# Set up for loop to run lsoda with different initial conditions & different fishing pressures
+for(i in 1:length(f_values)){
+  if(i==1){
+    B0<-0.15
+    R0<-0.15
+    G0<-0.6
+    C0<-0.75
+    T0<-0.05
+    M0<-0.05
+    S0 <- 1 - T0 - C0 - M0
+    }
+  else{
+    G0<-tail(P2_output_new$Grazers,1)
+    R0<-tail(P2_output_new$Generalists,1)
+    B0<-tail(P2_output_new$Browsers,1)
+    C0<-tail(P2_output_new$Coral,1)
+    T0<-tail(P2_output_new$Turf,1)
+    M0<-tail(P2_output_new$Macroalgae,1)
+    S0<-tail(P2_output_new$Space,1)
+  }
+  P2_state_vars<-c(GG=G0, RR=R0, BB=B0, CC=C0, TT=T0, MM=M0, SS=S0)
+  hh_pars[16]<-f_values[i] # set fishing pressure
+  P2_output<-lsoda(c(Grazers=G0, Generalists=R0, Browsers=B0,
+                     Coral=C0, Turf=T0, Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+  P2_output_new<-as.data.frame(P2_output)
+  P2_output_new$Space = 1 - P2_output_new$Coral - P2_output_new$Turf - P2_output_new$Macroalgae
+  P2_output_new$Algae = P2_output_new$Turf + P2_output_new$Macroalgae
+  P2_output_new$Herbivores = P2_output_new$Grazers + P2_output_new$Generalists + P2_output_new$Browsers
+  
+  
+  Grazers_Exp_Hyst_output$Fishing[i]<-hh_pars[16]
+  Grazers_Exp_Hyst_output$Initial_Coral[i]<-C0
+  Grazers_Exp_Hyst_output$Final_Coral[i]<-tail(P2_output_new$Coral,1)
+  Grazers_Exp_Hyst_output$Final_Turf[i]<-tail(P2_output_new$Turf,1)
+  Grazers_Exp_Hyst_output$Final_Macroalgae[i]<-tail(P2_output_new$Macroalgae,1)
+  Grazers_Exp_Hyst_output$Final_Algae[i]<-tail(P2_output_new$Algae,1)
+  Grazers_Exp_Hyst_output$Final_Grazers[i]<-tail(P2_output_new$Grazers,1)
+  Grazers_Exp_Hyst_output$Final_Generalists[i]<-tail(P2_output_new$Generalists,1)
+  Grazers_Exp_Hyst_output$Final_Browsers[i]<-tail(P2_output_new$Browsers,1)
+  Grazers_Exp_Hyst_output$Final_Herbivores[i]<-tail(P2_output_new$Herbivores,1)
+  Grazers_Exp_Hyst_output$Final_Space[i]<-tail(P2_output_new$Space,1)
+}
+
+
+
+
+# Reversing the simulation
+
+#f_values<-seq(0,1,by=0.005)
+f_values_2<-rev(seq(0,1,by=0.005))
+P2_tseq<-seq(0,1000,by=0.1)
+
+
+## set up a data frame to store the results I want
+Grazers_Exp_Hyst_output_rev<-data.frame(f_values_2)
+
+# Set up for loop to run lsoda with different initial conditions & different fishing pressures
+for(i in 1:length(f_values_2)){
+  if(i==1){
+    G0<-tail(Grazers_Exp_Hyst_output$Final_Grazers,1)
+    R0<-tail(Grazers_Exp_Hyst_output$Final_Generalists,1)
+    B0<-tail(Grazers_Exp_Hyst_output$Final_Browsers,1)
+    C0<-tail(Grazers_Exp_Hyst_output$Final_Coral,1)
+    T0<-tail(Grazers_Exp_Hyst_output$Final_Turf,1)
+    M0<-tail(Grazers_Exp_Hyst_output$Final_Macroalgae,1)
+    S0<-tail(Grazers_Exp_Hyst_output$Final_Space,1)
+    # 
+    # B0<-0.15
+    # R0<-0.15
+    # G0<-0.6
+    # C0<-0.75
+    # T0<-0.05
+    # M0<-0.05
+    # S0 <- 1 - T0 - C0 - M0
+    }
+  else{
+    G0<-tail(P2_output_new$Grazers,1)
+    R0<-tail(P2_output_new$Generalists,1)
+    B0<-tail(P2_output_new$Browsers,1)
+    C0<-tail(P2_output_new$Coral,1)
+    T0<-tail(P2_output_new$Turf,1)
+    M0<-tail(P2_output_new$Macroalgae,1)
+    S0<-tail(P2_output_new$Space,1)
+  }
+  P2_state_vars<-c(GG=G0, RR=R0, BB=B0, CC=C0, TT=T0, MM=M0, SS=S0)
+  hh_pars[16]<-f_values_2[i] # set fishing pressure
+  P2_output<-lsoda(c(Grazers=G0, Generalists=R0, Browsers=B0,
+                     Coral=C0, Turf=T0, Macroalgae=M0),
+                 P2_tseq, P2_Model, hh_pars)
+  P2_output_new<-as.data.frame(P2_output)
+  P2_output_new$Space = 1 - P2_output_new$Coral - P2_output_new$Turf - P2_output_new$Macroalgae
+  P2_output_new$Algae = P2_output_new$Turf + P2_output_new$Macroalgae
+  P2_output_new$Herbivores = P2_output_new$Grazers + P2_output_new$Generalists + P2_output_new$Browsers
+  
+  
+  Grazers_Exp_Hyst_output_rev$Fishing[i]<-hh_pars[16]
+  Grazers_Exp_Hyst_output_rev$Initial_Coral[i]<-C0
+  Grazers_Exp_Hyst_output_rev$Final_Coral[i]<-tail(P2_output_new$Coral,1)
+  Grazers_Exp_Hyst_output_rev$Final_Turf[i]<-tail(P2_output_new$Turf,1)
+  Grazers_Exp_Hyst_output_rev$Final_Macroalgae[i]<-tail(P2_output_new$Macroalgae,1)
+  Grazers_Exp_Hyst_output_rev$Final_Algae[i]<-tail(P2_output_new$Algae,1)
+  Grazers_Exp_Hyst_output_rev$Final_Grazers[i]<-tail(P2_output_new$Grazers,1)
+  Grazers_Exp_Hyst_output_rev$Final_Generalists[i]<-tail(P2_output_new$Generalists,1)
+  Grazers_Exp_Hyst_output_rev$Final_Browsers[i]<-tail(P2_output_new$Browsers,1)
+  Grazers_Exp_Hyst_output_rev$Final_Herbivores[i]<-tail(P2_output_new$Herbivores,1)
+  Grazers_Exp_Hyst_output_rev$Final_Space[i]<-tail(P2_output_new$Space,1)
+}
+
+```
+
+
+
+## Configuring dataframes to be able to plot them all together easily with ggplot
+
+```{r}
+
+## Need to change the name of the first column in this data frame so all of the column names match up in the two data frames I am rbinding below
+colnames(Exp_Hysteresis_output_real_rev)[1]<-"f_values"
+colnames(Browsers_Exp_Hyst_output_rev)[1]<-"f_values"
+colnames(Generalists_Exp_Hyst_output_rev)[1]<-"f_values"
+colnames(Grazers_Exp_Hyst_output_rev)[1]<-"f_values"
+
+
+# Row bind the various data frames in order to plot by them
+Exp_Hysteresis_output_real$Id="Forward"
+Exp_Hysteresis_output_real_rev$Id="Reverse"
+Browsers_Exp_Hyst_output$Id="Forward"
+Browsers_Exp_Hyst_output_rev$Id="Reverse"
+Generalists_Exp_Hyst_output$Id="Forward"
+Generalists_Exp_Hyst_output_rev$Id="Reverse"
+Grazers_Exp_Hyst_output$Id="Forward"
+Grazers_Exp_Hyst_output_rev$Id="Reverse"
+
+
+# Add another column to identify which model is which for plotting in separate plots
+Exp_Hysteresis_output_real$Type="E) Herbivore groups even"
+Exp_Hysteresis_output_real_rev$Type="E) Herbivore groups even"
+Browsers_Exp_Hyst_output$Type="G) Browser-dominated"
+Browsers_Exp_Hyst_output_rev$Type="G) Browser-dominated"
+Generalists_Exp_Hyst_output$Type="F) Generalist-dominated"
+Generalists_Exp_Hyst_output_rev$Type="F) Generalist-dominated"
+Grazers_Exp_Hyst_output$Type="H) Grazer-dominated"
+Grazers_Exp_Hyst_output_rev$Type="H) Grazer-dominated"
+
+
+
+# Row bind the various scenarios together
+exp_hysteresis_all=rbind(Exp_Hysteresis_output_real, Exp_Hysteresis_output_real_rev,
+                         Browsers_Exp_Hyst_output, Browsers_Exp_Hyst_output_rev,
+                         Generalists_Exp_Hyst_output, Generalists_Exp_Hyst_output_rev,
+                         Grazers_Exp_Hyst_output, Grazers_Exp_Hyst_output_rev)
+
+
+# export simulation results to .csv file
+write_csv(exp_hysteresis_all, file = "../../output/analyses/fig5/hysteresis_all.csv")
+
+```
+
+
+## Read .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+exp_hysteresis_all <- read_csv(file = "../../output/analyses/fig5/hysteresis_all.csv")
+
+```
+
+
+
+
+
+# Plotting the figures
+
+```{r}
+
+# Reorder factor levels to control order in figure 5. Generalists first, then browsers, then grazers.
+exp_hysteresis_all$Type<-factor(exp_hysteresis_all$Type, levels=c("E) Herbivore groups even","F) Generalist-dominated","G) Browser-dominated","H) Grazer-dominated"))
+
+
+
+# Save figure as a PDF file
+pdf("../../output/figures/Fig_5B.pdf", width=2.5, height=8.5)
+
+#quartz()
+ggplot(data=exp_hysteresis_all, aes(x=Fishing, Final_Coral, group=Id, color=Id)) +
+    geom_line(aes(size=Id)) +
+    scale_color_manual(labels=c("Forward","Reverse"), values=c("red","black")) + 
+    theme_classic(base_size=14, base_family = "Times") + 
+    theme(axis.title=element_text(size=16, face="bold")) +
+    scale_size_manual(values=c(2,1)) + 
+    xlim(0,1) + 
+    ylim(0,1) + 
+    ylab("Coral Cover") +
+    xlab("Fishing Pressure") +
+    theme(legend.title=element_blank(),
+          legend.position = c(0.75,0.965),
+          legend.text=element_text(size=9),
+          legend.background = element_rect(fill = "transparent")) +
+    facet_wrap(~Type,nrow = 4) +
+    theme(strip.text.x = element_text(size = 11))
+
+# dev.off()
+
+```
+
