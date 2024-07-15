@@ -1,0 +1,212 @@
+---
+title: "S12_initial-coral-diffs"
+author: "Shayna A. Sura"
+date: "2024-07-14"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+
+library(deSolve)
+library(reshape2)
+library(viridis)
+library(viridisLite)
+library(gridExtra)
+library(tidyverse) # includes and loads the packages listed below
+# library(readr)
+# library(tidyr)
+# library(dplyr)
+# library(ggplot2)
+# library(lubridate)
+
+library(here) # helps with paths for files
+library(purrr) # vectorized coding approaches for faster analyses
+library(scales)
+library(ggtext)
+library(lemon)
+
+```
+
+
+
+```{r source model code and parameters}
+
+# source("0.1_basic_model.R")
+source("0.2_full_model.R")
+
+```
+
+
+# Supplemental Question 1: 
+How does varying initial benthic cover of coral, turf, and macroalgae influence the recovery of coral reefs after a disturbance, for different levels of fishing pressure?
+
+```{r}
+
+
+# Define the initial values
+turf_values <- seq(0, 0.7, by = 0.01)
+macro_values <- seq(0, 0.7, by = 0.01)
+f_values <- seq(0, 0.7, by = 0.1)
+# C0_values <- c(0.75, 0.55, 0.35, 0.15)
+C0_values <- c(0.15, 0.35, 0.55, 0.75)
+
+
+# Create a single data frame with all combinations
+test_initials <- expand.grid(Turf = turf_values, Macroalgae = macro_values, Fishing_Pressure = f_values, Coral = C0_values)
+
+# Calculate the amount of remaining open space
+test_initials$Space <- 1 - (test_initials$Turf + test_initials$Macroalgae + test_initials$Coral)
+
+# Filter to only keep scenarios where's there at least 0.15 open space
+test_initials <- test_initials %>% 
+  mutate(Space = (1 - (Turf + Macroalgae + Coral))) %>% 
+  filter(Space >= 0.14999)
+
+
+# Function to run the model for a single set of initial conditions
+run_model <- function(T0, M0, C0, Fishing_Pressure, P2_tseq, P2_Model, hh_pars) {
+  G0 <- 0.3
+  B0 <- 0.3
+  R0 <- 0.3
+  S0 <- 1 - C0 - T0 - M0
+  hh_pars[16] <- Fishing_Pressure
+  
+  zz_output <- lsoda(c(Grazers = G0, Generalists = R0, Browsers = B0,
+                       Coral = C0, Turf = T0, Macroalgae = M0),
+                     P2_tseq, P2_Model, hh_pars)
+  zz_output_df <- as.data.frame(zz_output)
+  
+  list(
+    Final_Coral = tail(zz_output_df$Coral, 1),
+    Final_Turf = tail(zz_output_df$Turf, 1),
+    Final_Macroalgae = tail(zz_output_df$Macroalgae, 1),
+    Coral_switch = zz_output_df[which.max(zz_output_df$Coral < 0.5), 1],
+    Macro_switch = zz_output_df[which.max(zz_output_df$Macroalgae > 0.5), 1],
+    Algal_switch = zz_output_df[which.max((zz_output_df$Turf + zz_output_df$Macroalgae) > 0.5), 1],
+    Final_Grazers = tail(zz_output_df$Grazers, 1),
+    Final_Generalists = tail(zz_output_df$Generalists, 1),
+    Final_Browsers = tail(zz_output_df$Browsers, 1)
+  )
+}
+
+# Function to apply the simulation to all initial conditions
+run_simulations <- function(test_initials, P2_tseq, P2_Model, hh_pars) {
+  # Exclude 'Space' column when passing to pmap_dfr
+  test_initials_excl_space <- test_initials %>% select(-Space)
+  
+  results <- pmap_dfr(test_initials_excl_space, function(Turf, Macroalgae, Coral, Fishing_Pressure) {
+    run_model(Turf, Macroalgae, Coral, Fishing_Pressure, P2_tseq, P2_Model, hh_pars)
+  })
+  
+  bind_cols(test_initials, results)
+}
+
+# Run simulations for all initial conditions
+coral_all <- run_simulations(test_initials, P2_tseq, P2_Model, hh_pars)
+
+```
+
+
+# Write simulation results to .csv file
+```{r}
+
+# export simulation results to .csv file
+write_csv(coral_all, file = "../../output/analyses/supplement/supp_q1_coral_all_results.csv")
+
+```
+
+
+## Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+coral_all <- read_csv(file = "../../output/analyses/supplement/supp_q1_coral_all_results.csv")
+
+```
+
+
+
+# Making figure of all results - supplemental figure S12.
+```{r}
+
+f_values <- seq(0, 0.7, by = 0.1)
+# C0_values <- c(0.75, 0.55, 0.35, 0.15)
+C0_values <- c(0.15, 0.35, 0.55, 0.75)
+
+
+# Streamlined version for setting Fishing_ID labels
+fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
+names(fishing_labels) <- f_values
+
+
+# Streamlined version for setting Coral_ID labels
+coral_labels <- paste0("Initial\nCoral\n= ", (C0_values))
+names(coral_labels) <- (C0_values)
+
+coral_all <- coral_all %>%
+  mutate(Fishing_ID = factor(Fishing_Pressure, levels = f_values, labels = fishing_labels)) %>% 
+  mutate(Coral_ID = factor(Coral, levels = C0_values, labels = coral_labels))
+
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+
+# # Create a custom function to generate alphabetical tags
+# generate_tags <- function(n) {
+#   LETTERS[1:n]
+# }
+# 
+# # Add a column with facet tags
+# facet_tags <- generate_tags(nrow(unique(coral_all[, c("Fishing_ID", "Coral_ID")])))
+# 
+# 
+# # Assign facet tags uniquely to each combination of Fishing_ID and Id
+# coral_all <- coral_all %>%
+#   arrange(Coral_ID, Fishing_ID) %>%
+#   group_by(Coral_ID, Fishing_ID) %>%
+#   mutate(Facet_Tag = facet_tags[cur_group_id()]) %>%
+#   ungroup()
+
+
+
+# Create the plot
+pdf("../../output/figures/fig_S12.pdf", width = 6, height = 10)
+
+ggplot(data = coral_all, aes(Turf, Macroalgae)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("Initial Turf Abundance",
+                     limits = c(0,0.9),
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  scale_y_continuous("Initial Macroalgal Abundance",
+                     limits = c(0,0.9),
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  facet_rep_grid(Fishing_ID ~ Coral_ID) +
+  coord_capped_cart(bottom = 'both', left = 'both') +
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0))
+
+# +
+#   theme(panel.spacing = unit(1, "lines")) +  # Adds space for facet tags
+#   geom_richtext(aes(label = Facet_Tag, family = "Times"), 
+#                 x = Inf, y = Inf, 
+#                 hjust = 1.1, vjust = 1.1, 
+#                 size = 4,
+#                 fill = NA, label.color = NA)
+
+
+
+```
+
+
+
+
+

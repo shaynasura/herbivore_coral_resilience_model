@@ -20,9 +20,7 @@ library(tidyverse) # includes and loads the packages listed below
 # library(lubridate)
 
 library(here) # helps with paths for files
-
 library(purrr) # vectorized coding approaches for faster analyses
-
 library(scales)
 
 
@@ -30,72 +28,14 @@ library(scales)
 
 
 # Recreation of van de Leemput (vdL) et al. (2016) model set up (aka 'basic' model)
+```{r source model code and parameters}
 
-```{r Basic Model, echo=TRUE}
-
-#Set initial conditions for state variables
-H0<-0.9
-C0<-0.75
-A0<-0.1
-S0 <- 1 - C0 - A0
-
-state_vars<-c(HH=H0, CC=C0, AA=A0, SS=S0)
-
-#generate a series of times at which you want the ODE solver to output population sizes
-tseq<-seq(0,1000,by=0.1)
-
-#Generate a vector of parameter values
-pars<-c(bc<-0.3,
-        ba<- 0.8,
-        ic<-0.05,
-        ia<-0.05,
-        dc<-0.1,
-        r<-1,
-        g<-1,
-        eta<-1,
-        alpha<-0.5,
-        sigma<-0.6,
-        f<-0.1)
-
-Basic_Model<-function(tseq,state_vars,pars){
-  HH <- state_vars[1]
-  CC <- state_vars[2]
-  AA <- state_vars[3]
-  SS <- 1 - CC - AA
-  
-  bc <- pars[1]
-  ba <- pars[2]
-  ic <- pars[3]
-  ia <- pars[4]
-  dc <- pars[5]
-  r <- pars[6]
-  g <- pars[7]
-  eta <- pars[8]
-  alpha <- pars[9]
-  sigma <- pars[10]
-  f <- pars[11]
-  
-  dC_dt <- (ic + bc*CC)*SS*(1-alpha*AA)- dc*CC
-  dA_dt <-(ia + ba*AA)*SS - (g*HH*AA / (g*eta*AA+1))
-  dH_dt <-r*HH*(1 - (HH / ((1-sigma) + sigma*CC))) - f*HH
-
-  return(list(c(dH<- dH_dt,
-                dC <- dC_dt,
-                dA <- dA_dt)))
-}
-
-Basic_M_output<-lsoda(c(Herbivores=H0,Coral=C0,Algae=A0), tseq, Basic_Model, pars)
-Basic_M_output=as.data.frame(Basic_M_output)
-Basic_M_output$Space= 1 - Basic_M_output$Coral - Basic_M_output$Algae
-
-#head(Basic_M_output)
-#tail(Basic_M_output)
+source("0.1_basic_model.R")
 
 ```
 
 
 ## Basic Model Bistability - vectorized approach for evaluating
-
 ```{r}
 ## Basic Model
 
@@ -154,7 +94,6 @@ basic_1 <- read_csv(file = "../../output/analyses/supplement/bistability-basic_1
 
 
 ### Determine the range of fishing pressure values for which bistability exists.
-
 ```{r}
 
 ## Determine which fishing pressure values the coral reef system exhibits bistability depending upon the initial coral cover conditions.
@@ -177,7 +116,6 @@ basic_C0_0$Fishing_Pressure[which(basic_C0_0$bistability==TRUE)]
 
 
 ### Make a figure of the results
-
 ```{r}
 
 custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))

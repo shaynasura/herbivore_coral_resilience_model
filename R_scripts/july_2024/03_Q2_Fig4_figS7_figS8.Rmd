@@ -1,0 +1,362 @@
+---
+title: "Question 2 Analyses - produces Fig. 4, and Supplemental Fig. S7 and Fig. S8"
+author: "Shayna A. Sura"
+date: "2024-07-14"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+
+library(deSolve)
+library(reshape2)
+library(viridis)
+library(viridisLite)
+library(gridExtra)
+library(tidyverse) # includes and loads the packages listed below
+# library(readr)
+# library(tidyr)
+# library(dplyr)
+# library(ggplot2)
+# library(lubridate)
+
+library(here) # helps with paths for files
+library(purrr) # vectorized coding approaches for faster analyses
+library(scales)
+library(ggtext)
+library(lemon)
+
+```
+
+
+
+```{r source model code and parameters}
+
+# source("0.1_basic_model.R")
+source("0.2_full_model.R")
+
+```
+
+
+# Question 2: 
+How does dominance by different herbivore groups under different fishing pressures interact with abundance of their targeted resources to affect reef recovery after a disturbance?
+
+```{r}
+
+
+
+# Define the initial conditions for which to evaluate
+turf_values<-seq(0, 0.7, by=0.01)
+macro_values<-seq(0, 0.7, by=0.01)
+f_values<-seq(0, 0.7, by=0.1)
+
+
+algae_initials <- expand.grid(turf_values, macro_values, f_values)
+colnames(algae_initials) <- c("Turf", "Macroalgae", "Fishing_Pressure")
+
+# Filter rows where the total initial algae is less than or equal to 0.7
+final_algae <- subset(algae_initials, rowSums(algae_initials[, c("Turf", "Macroalgae")]) <= 0.7)
+
+# Define a function to run the model for a given set of initial conditions and herbivore abundances
+run_model <- function(initial_conditions, G0, B0, R0) {
+  C0 <- 0.15
+  T0 <- initial_conditions["Turf"]
+  M0 <- initial_conditions["Macroalgae"]
+  S0 <- 1 - C0 - T0 - M0
+  
+  initial_state <- c(Grazers = G0, Generalists = R0, Browsers = B0, Coral = C0, Turf = T0, Macroalgae = M0)
+  hh_pars[16] <- initial_conditions["Fishing_Pressure"] # set the fishing pressure
+  
+  zz_output <- lsoda(initial_state, P2_tseq, P2_Model, hh_pars)
+  zz_output_new <- as.data.frame(zz_output)
+  
+  final_values <- c(
+    Initial_Turf = T0,
+    Initial_Macroalgae = M0,
+    Fishing_Pressure = initial_conditions["Fishing_Pressure"],
+    Final_Coral = tail(zz_output_new$Coral, 1),
+    Final_Turf = tail(zz_output_new$Turf, 1),
+    Final_Macroalgae = tail(zz_output_new$Macroalgae, 1)
+  )
+  
+  return(final_values)
+}
+
+# Define initial herbivore abundances for different scenarios
+herbivore_scenarios <- list(
+  Grazer_dominated = c(Grazers = 0.6, Browsers = 0.15, Generalists = 0.15),
+  Browser_dominated = c(Grazers = 0.15, Browsers = 0.6, Generalists = 0.15),
+  Generalist_dominated = c(Grazers = 0.15, Browsers = 0.15, Generalists = 0.6)
+)
+
+
+# Run simulations for each herbivore scenario
+results <- lapply(names(herbivore_scenarios), function(scenario) {
+  initial_conditions <- cbind(final_algae, scenario)
+  final_values <- apply(final_algae, 1, run_model,
+                        G0 = herbivore_scenarios[[scenario]]["Grazers"],
+                        B0 = herbivore_scenarios[[scenario]]["Browsers"],
+                        R0 = herbivore_scenarios[[scenario]]["Generalists"])
+
+  final_values_df <- as.data.frame(t(final_values))
+  colnames(final_values_df) <- c("Initial_Turf", "Initial_Macroalgae", "Fishing_Pressure",
+                                 "Final_Coral", "Final_Turf", "Final_Macroalgae")
+  final_values_df$Id <- scenario
+  return(final_values_df)
+})
+
+
+
+# Combine results into one data frame
+algae_all <- do.call(rbind, results)
+
+# Reorder levels of herbivores for plotting
+herbivore_labels <- c("Generalist\ndominated", "Browser\ndominated", "Grazer\ndominated")
+names(herbivore_labels) <- c("Generalist_dominated", "Browser_dominated", "Grazer_dominated")
+
+# Getting names for Fishing Pressure for plotting
+fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
+names(fishing_labels) <- f_values
+
+# Set Fishing_Pressure and Herbivore_Scenario ID levels
+algae_all <- algae_all %>% 
+  mutate(Id = factor(Id, levels = names(herbivore_labels), labels = herbivore_labels)) %>% 
+  mutate(Fishing_ID = factor(Fishing_Pressure, levels = f_values, labels = fishing_labels))
+
+
+# levels(algae_all_test$Id)
+
+
+```
+
+
+
+
+
+# Write simulation results to .csv file
+```{r}
+
+# export simulation results to .csv file
+write_csv(algae_all, file = "../../output/analyses/Q2/question_2_all_results.csv")
+
+```
+
+
+## Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+algae_all <- read_csv(file = "../../output/analyses/Q2/question_2_all_results.csv")
+
+glimpse(algae_all)
+max(algae_all$Initial_Macroalgae)
+max(algae_all$Initial_Turf)
+min(algae_all$Initial_Macroalgae)
+min(algae_all$Initial_Turf)
+range(algae_all$Initial_Turf)
+range(algae_all$Initial_Macroalgae)
+
+```
+
+
+
+# Making figure of all results - supplemental figure S7.
+```{r}
+
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Create the plot
+pdf("../../output/figures/fig_S7.pdf", width = 6, height = 12)
+
+ggplot(data = algae_all, aes(Initial_Turf, Initial_Macroalgae)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("Initial Turf Abundance"
+                     ,
+                     # limits = c(0, 0.8),
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)
+                     ) +
+  scale_y_continuous("Initial Macroalgal Abundance"
+                     ,
+                     # limits = c(0, 0.8),
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)
+                     ) +
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  # coord_cartesian(xlim = c(0, 0.8), ylim = c(0, 0.8)) + # Set the display limits
+  # coord_capped_cart(bottom = 'both', left = 'both') +
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+
+
+dev.off()
+
+
+```
+
+
+
+# Figure 4
+## Subset the data to only show some scenarios in the main text figure - Figure 2 Final Coral Cover
+
+```{r}
+
+# reminder of f_values
+f_values <- seq(0, 0.7, by = 0.1)
+
+# # Set Fishing_ID labels
+# fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
+# names(fishing_labels) <- f_values
+
+# identify those fishing pressure levels to show in main text figure
+main_fishing <- c(0, 0.3, 0.6)
+
+# Define a tolerance for floating-point comparison
+tolerance <- 1e-8
+
+# Filter algae_all for just the fishing pressures we want to show in the main text figure
+algae_small <- algae_all %>%
+  filter(sapply(Fishing_Pressure, function(fp) any(abs(fp - main_fishing) < tolerance)))
+
+# Check unique values in the filtered data frame
+unique(algae_small$Fishing_Pressure)
+
+
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+
+# Create a custom function to generate alphabetical tags
+generate_tags <- function(n) {
+  LETTERS[1:n]
+}
+
+# Add a column with facet tags
+facet_tags <- generate_tags(nrow(unique(algae_small[, c("Fishing_ID", "Id")])))
+
+
+# Assign facet tags uniquely to each combination of Fishing_ID and Id
+algae_small <- algae_small %>%
+  arrange(Id, Fishing_ID) %>%
+  group_by(Id, Fishing_ID) %>%
+  mutate(Facet_Tag = facet_tags[cur_group_id()]) %>%
+  ungroup()
+
+
+
+
+# Create the plot
+pdf("../../output/figures/Fig_4.pdf", width = 7, height = 5.7)
+
+ggplot(data = algae_small, aes(Initial_Turf, Initial_Macroalgae)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("Initial Turf Abundance",
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  scale_y_continuous("Initial Macroalgal Abundance",
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(bottom = 'both', left = 'both') +
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  theme(panel.spacing = unit(1, "lines")) +  # Adds space for facet tags
+  geom_richtext(aes(label = Facet_Tag, family = "Times"), 
+                x = Inf, y = Inf, 
+                hjust = 1.1, vjust = 1.1, 
+                size = 4,
+                fill = NA, label.color = NA)
+
+dev.off()
+
+```
+
+
+
+
+# Figure S8
+## Using the subset of data from figure 4 - show the final cover of turf versus macroalgae - Figure S8
+
+```{r}
+
+# calculate one variable to show either the final cover of turf or macroalgae, depending on which had higher cover
+algae_small$Turf_or_Macro<-ifelse(algae_small$Final_Turf > algae_small$Final_Macroalgae,
+                                  algae_small$Final_Turf,
+                                  -algae_small$Final_Macroalgae)
+
+
+
+# Create the plot
+S8_main_plot <- ggplot(data = algae_small, aes(Initial_Turf, Initial_Macroalgae)) +
+  geom_tile(aes(fill = Turf_or_Macro)) +
+  scale_x_continuous("Initial Turf Abundance",
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  scale_y_continuous("Initial Macroalgal Abundance",
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  labs(fill = "") +
+  scale_fill_continuous_divergingx(palette = "Fall",
+                                   limits=c(-1,1),
+                                   breaks = c(-1, -0.5, 0, 0.5, 1),
+                                   labels = c("1.0", "0.5", "0", "0.5", "1.0")) +
+  guides(fill = guide_colorbar(title.position = "top",
+                               title.hjust = 0.5,
+                               label.hjust = 0.5,
+                               barheight = unit(6, "lines"),
+                               barwidth = unit(1, "lines"),
+                               draw.ulim = FALSE,
+                               draw.llim = FALSE,
+                               frame.colour = "black",
+                               ticks.colour = "black",
+                               label.position = "right",
+                               label.theme = element_text(size = 8),
+                               title = "Cover of\nTurf",
+                               title.theme = element_text(size = 11))) +
+  scale_colour_continuous_divergingx(palette = "Fall",
+                                     limits=c(-1,1)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(bottom = 'both', left = 'both') +
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  theme(panel.spacing = unit(1, "lines")) +  # Adds space for facet tags
+  geom_richtext(aes(label = Facet_Tag, family = "Times"), 
+                x = Inf, y = Inf, 
+                hjust = 1.1, vjust = 1.1, 
+                size = 4,
+                fill = NA, label.color = NA)
+
+
+S8_final_plot <- ggdraw(S8_main_plot) +
+  draw_label("Cover of\nMacroalgae", x = 0.94, y = 0.33, hjust = 0.5, size = 11, angle = 0, fontfamily = "Times")
+
+S8_final_plot
+
+# Save the plot
+pdf("../../output/figures/fig_S8.pdf", width = 7, height = 5.7)
+print(S8_final_plot)
+dev.off()
+
+
+
+```
+
+
+
+

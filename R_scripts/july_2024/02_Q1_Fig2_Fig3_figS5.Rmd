@@ -1,0 +1,357 @@
+---
+title: "Question 1 Analyses - produces Fig. 2, Fig. 3, and Supplemental Fig. S5"
+author: "Shayna A. Sura"
+date: "2024-07-14"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+
+library(deSolve)
+library(reshape2)
+library(viridis)
+library(viridisLite)
+library(gridExtra)
+library(tidyverse) # includes and loads the packages listed below
+# library(readr)
+# library(tidyr)
+# library(dplyr)
+# library(ggplot2)
+# library(lubridate)
+
+library(here) # helps with paths for files
+library(purrr) # vectorized coding approaches for faster analyses
+library(scales)
+library(ggtext)
+library(lemon)
+library(cowplot)
+library(grid)
+
+```
+
+
+
+```{r source model code and parameters}
+
+# source("0.1_basic_model.R")
+source("0.2_full_model.R")
+
+```
+
+
+# Question 1:
+How does the functional composition of the herbivorous fish community and total herbivory pressure (set by fishing pressure) affect reef recovery from disturbance?
+
+```{r}
+
+# Define the initial conditions for which to evaluate
+GG_values <- seq(0, 0.9, by = 0.025)
+BB_values <- seq(0, 0.9, by = 0.025)
+f_values <- seq(0, 0.7, by = 0.1)
+
+
+# Create a function to run the model for different initial conditions
+run_model <- function(GG_values, BB_values, f_values, R0_value) {
+  initials <- expand.grid(GG_values, BB_values, f_values)
+  initials$RR_values <- R0_value
+  final_qq <- subset(initials, rowSums(initials[, c(1, 2, 4)]) <= 0.9)
+  colnames(final_qq) <- c("Grazers", "Browsers", "Fishing_Pressure", "Generalists")
+
+  # Function to compute the model for given parameters
+  compute_model <- function(G0, B0, R0, Fishing_Pressure, P2_tseq, P2_Model, hh_pars) {
+    C0 <- 0.15
+    M0 <- 0.0
+    T0 <- 0.7
+    S0 <- 1 - C0 - M0 - T0
+    hh_pars[16] <- Fishing_Pressure
+    
+    zz_output <- lsoda(c(Grazers = G0, Generalists = R0, Browsers = B0,
+                         Coral = C0, Turf = T0, Macroalgae = M0),
+                       P2_tseq, P2_Model, hh_pars)
+    
+    zz_output_new <- as.data.frame(zz_output)
+    
+    list(
+      Final_Coral = tail(zz_output_new$Coral, 1),
+      Final_Turf = tail(zz_output_new$Turf, 1),
+      Final_Macroalgae = tail(zz_output_new$Macroalgae, 1),
+      Final_Grazers = tail(zz_output_new$Grazers, 1),
+      Final_Browsers = tail(zz_output_new$Browsers, 1),
+      Final_Generalists = tail(zz_output_new$Generalists, 1)
+    )
+  }
+
+  # Apply the model computation in a vectorized way using mapply
+  results <- mapply(compute_model,
+                    G0 = final_qq$Grazers,
+                    B0 = final_qq$Browsers,
+                    R0 = final_qq$Generalists,
+                    Fishing_Pressure = final_qq$Fishing_Pressure,
+                    MoreArgs = list(P2_tseq = P2_tseq, P2_Model = P2_Model, hh_pars = hh_pars),
+                    SIMPLIFY = FALSE)
+
+  # Combine results back into the data frame
+  results_df <- do.call(rbind, lapply(results, as.data.frame))
+  final_qq <- cbind(final_qq, results_df)
+  
+  return(final_qq)
+}
+
+# Run the model for R0 = 0, 0.2, and 0.4
+final_qq_0 <- run_model(GG_values, BB_values, f_values, 0)
+final_qq_2 <- run_model(GG_values, BB_values, f_values, 0.2)
+final_qq_4 <- run_model(GG_values, BB_values, f_values, 0.4)
+
+# Give an Id for each scenario
+final_qq_0$Id="Generalists = 0"
+final_qq_2$Id="Generalists = 0.2"
+final_qq_4$Id="Generalists = 0.4"
+
+# Combine all results into one data frame
+qq_all <- bind_rows(final_qq_0, final_qq_2, final_qq_4)
+
+# View the updated data frame
+view(qq_all)
+
+
+```
+
+
+# Write simulation results to .csv file
+```{r}
+
+# export simulation results to .csv file
+write_csv(qq_all, file = "../../output/analyses/Q1/question_1_all_results.csv")
+
+```
+
+
+## Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+qq_all <- read_csv(file = "../../output/analyses/Q1/question_1_all_results.csv")
+
+```
+
+
+
+# Making figure of all results - supplemental figure S5.
+```{r}
+
+# Streamlined version for setting Fishing_ID labels
+fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
+names(fishing_labels) <- f_values
+
+qq_all <- qq_all %>%
+  mutate(Fishing_ID = factor(Fishing_Pressure, levels = f_values, labels = fishing_labels))
+
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+
+# Create a custom function to generate alphabetical tags
+generate_tags <- function(n) {
+  LETTERS[1:n]
+}
+
+# Add a column with facet tags
+facet_tags <- generate_tags(nrow(unique(qq_all[, c("Fishing_ID", "Id")])))
+
+
+# Assign facet tags uniquely to each combination of Fishing_ID and Id
+qq_all <- qq_all %>%
+  arrange(Id, Fishing_ID) %>%
+  group_by(Id, Fishing_ID) %>%
+  mutate(Facet_Tag = facet_tags[cur_group_id()]) %>%
+  ungroup()
+
+
+# Create the plot
+pdf("../../output/figures/fig_S5.pdf", width = 6, height = 12)
+
+ggplot(data = qq_all, aes(Grazers, Browsers)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("Initial Grazer Abundance",
+                     breaks = c(0, 0.3, 0.6, 0.9), 
+                     labels = c(0, 0.3, 0.6, 0.9)) +
+  scale_y_continuous("Initial Browser Abundance",
+                     breaks = c(0, 0.3, 0.6, 0.9), 
+                     labels = c(0, 0.3, 0.6, 0.9)) +
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(bottom = 'both', left = 'both') +
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  theme(panel.spacing = unit(1, "lines")) +  # Adds space for facet tags
+  geom_richtext(aes(label = Facet_Tag, family = "Times"), 
+                x = Inf, y = Inf, 
+                hjust = 1.1, vjust = 1.1, 
+                size = 4,
+                fill = NA, label.color = NA)
+
+dev.off()
+
+```
+
+
+
+# Figure 2
+## Subset the data to only show some scenarios in the main text figure - Figure 2 Final Coral Cover
+
+```{r}
+
+# reminder of f_values
+f_values <- seq(0, 0.7, by = 0.1)
+
+# Set Fishing_ID labels
+fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
+names(fishing_labels) <- f_values
+
+# identify those fishing pressure levels to show in main text figure
+main_fishing <- c(0, 0.2, 0.4)
+
+# filter qq_all for just the fishing pressures we want to show in the main text figure
+qq_small <- qq_all %>% 
+  filter(Fishing_Pressure %in% main_fishing) %>% 
+  mutate(Fishing_ID = factor(Fishing_Pressure, levels = f_values, labels = fishing_labels))
+
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+
+# Create a custom function to generate alphabetical tags
+generate_tags <- function(n) {
+  LETTERS[1:n]
+}
+
+# Add a column with facet tags
+facet_tags <- generate_tags(nrow(unique(qq_small[, c("Fishing_ID", "Id")])))
+
+
+# Assign facet tags uniquely to each combination of Fishing_ID and Id
+qq_small <- qq_small %>%
+  arrange(Id, Fishing_ID) %>%
+  group_by(Id, Fishing_ID) %>%
+  mutate(Facet_Tag = facet_tags[cur_group_id()]) %>%
+  ungroup()
+
+
+
+
+
+# Create the plot
+pdf("../../output/figures/Fig_2.pdf", width = 7, height = 5.7)
+
+ggplot(data = qq_small, aes(Grazers, Browsers)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("Initial Grazer Abundance",
+                     breaks = c(0, 0.3, 0.6, 0.9), 
+                     labels = c(0, 0.3, 0.6, 0.9)) +
+  scale_y_continuous("Initial Browser Abundance",
+                     breaks = c(0, 0.3, 0.6, 0.9), 
+                     labels = c(0, 0.3, 0.6, 0.9)) +
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(bottom = 'both', left = 'both') +
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  theme(panel.spacing = unit(1, "lines")) +  # Adds space for facet tags
+  geom_richtext(aes(label = Facet_Tag, family = "Times"), 
+                x = Inf, y = Inf, 
+                hjust = 1.1, vjust = 1.1, 
+                size = 4,
+                fill = NA, label.color = NA)
+
+dev.off()
+
+```
+
+
+
+
+# Figure 3
+## Using the subset of data from figure 2 - show the final cover of turf versus macroalgae - Figure 3
+```{r}
+
+#qq_small
+
+# calculate one variable to show either the final cover of turf or macroalgae, depending on which had higher cover
+qq_small$Turf_or_Macro<-ifelse(qq_small$Final_Turf > qq_small$Final_Macroalgae,
+                                qq_small$Final_Turf,
+                                -qq_small$Final_Macroalgae)
+
+
+
+# Create the plot
+main_plot <- ggplot(data = qq_small, aes(Grazers, Browsers)) +
+  geom_tile(aes(fill = Turf_or_Macro)) +
+  scale_x_continuous("Initial Grazer Abundance", breaks = c(0, 0.3, 0.6, 0.9), labels = c(0, 0.3, 0.6, 0.9)) +
+  scale_y_continuous("Initial Browser Abundance", breaks = c(0, 0.3, 0.6, 0.9), labels = c(0, 0.3, 0.6, 0.9)) +
+  labs(fill = "") +
+  scale_fill_continuous_divergingx(palette = "Fall",
+                                   limits=c(-1,1),
+                                   breaks = c(-1, -0.5, 0, 0.5, 1),
+                                   labels = c("1.0", "0.5", "0", "0.5", "1.0")) +
+  guides(fill = guide_colorbar(title.position = "top",
+                               title.hjust = 0.5,
+                               label.hjust = 0.5,
+                               barheight = unit(6, "lines"),
+                               barwidth = unit(1, "lines"),
+                               draw.ulim = FALSE,
+                               draw.llim = FALSE,
+                               frame.colour = "black",
+                               ticks.colour = "black",
+                               label.position = "right",
+                               label.theme = element_text(size = 8),
+                               title = "Cover of\nTurf",
+                               title.theme = element_text(size = 11))) +
+  scale_colour_continuous_divergingx(palette = "Fall",
+                                     limits=c(-1,1)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(bottom = 'both', left = 'both') +
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  theme(panel.spacing = unit(1, "lines")) +  # Adds space for facet tags
+  geom_richtext(aes(label = Facet_Tag, family = "Times"), 
+                x = Inf, y = Inf, 
+                hjust = 1.1, vjust = 1.1, 
+                size = 4,
+                fill = NA, label.color = NA)
+
+
+final_plot <- ggdraw(main_plot) +
+  draw_label("Cover of\nMacroalgae", x = 0.94, y = 0.33, hjust = 0.5, size = 11, angle = 0, fontfamily = "Times")
+
+final_plot
+
+# Save the plot
+pdf("../../output/figures/Fig_3.pdf", width = 7, height = 5.7)
+print(final_plot)
+dev.off()
+
+```
+
+
+
+
+
+
+
+
+
+
