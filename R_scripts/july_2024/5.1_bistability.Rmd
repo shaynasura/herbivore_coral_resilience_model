@@ -281,7 +281,7 @@ bistability_all$Id <- factor(bistability_all$Id, levels=c("A) Herbivore groups e
 custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
 
 
-pdf("../../output/figures/Fig_5A_v2.pdf",width=3.5,height=8.5) #this version has S0 = 0.15, and coral initials only going as high as 0.85
+pdf("../../output/figures/Fig_5A.pdf",width=3.5,height=8.5) #this version has S0 = 0.15, and coral initials only going as high as 0.85
 
 
 #quartz()
@@ -289,9 +289,9 @@ ggplot(bistability_all, aes(Fishing_Pressure, Initial_Coral)) +
   geom_tile(aes(fill = Final_Coral)) +
   theme_classic(base_size=14,base_family = "Times") + 
   theme(axis.title=element_text(size=16,face="bold")) +
-  labs(fill = "Final\nCoral\nCover") +
-  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
-  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  # labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
   scale_x_continuous("Fishing Pressure",
                      expand = c(0, 0),
                      breaks = c(0,0.25,0.5,0.75,1),
@@ -300,6 +300,19 @@ ggplot(bistability_all, aes(Fishing_Pressure, Initial_Coral)) +
                      expand = c(0, 0),
                      breaks = c(0,0.2,0.4,0.6,0.8),
                      labels = c(0,0.2,0.4,0.6,0.8)) +
+  guides(fill = guide_colorbar(title.position = "top",
+                               title.hjust = 0.5,
+                               label.hjust = 0.5,
+                               barheight = unit(6, "lines"),
+                               barwidth = unit(1, "lines"),
+                               draw.ulim = FALSE,
+                               draw.llim = FALSE,
+                               frame.colour = "black",
+                               ticks.colour = "black",
+                               label.position = "right",
+                               label.theme = element_text(size = 8),
+                               title = "Final\nCoral\nCover",
+                               title.theme = element_text(size = 11))) +
   facet_wrap(~Id,nrow = 4) +
   theme(strip.text.x = element_text(size = 11))
 

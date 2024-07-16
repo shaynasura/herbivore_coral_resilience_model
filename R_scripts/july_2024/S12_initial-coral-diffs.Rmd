@@ -176,19 +176,14 @@ pdf("../../output/figures/fig_S12.pdf", width = 6, height = 10)
 
 ggplot(data = coral_all, aes(Turf, Macroalgae)) +
   geom_tile(aes(fill = Final_Coral)) +
-  scale_x_continuous("Initial Turf Abundance",
-                     limits = c(0,0.9),
-                     breaks = c(0,0.2,0.4,0.6,0.8),
-                     labels = c(0,0.2,0.4,0.6,0.8)) +
-  scale_y_continuous("Initial Macroalgal Abundance",
-                     limits = c(0,0.9),
-                     breaks = c(0,0.2,0.4,0.6,0.8),
-                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  scale_x_continuous("Initial Turf Abundance") +
+  scale_y_continuous("Initial Macroalgal Abundance") +
   labs(fill = "Final\nCoral\nCover") +
-  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
-  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
   facet_rep_grid(Fishing_ID ~ Coral_ID) +
-  coord_capped_cart(bottom = 'both', left = 'both') +
+  coord_capped_cart(ylim = c(0,0.8), xlim = c(0,0.8),      # set axes limits here to avoid warnings about rows being removed.
+                    bottom = 'both', left = 'both') +      # this caps the axes lines at the outer tick marks.
   theme_classic(base_size = 10, base_family = "Times") +
   theme(axis.title = element_text(size = 11, face = "bold")) +
   theme(strip.text.x = element_text(size = 11)) +

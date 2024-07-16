@@ -135,7 +135,7 @@ write_csv(final_results, file = "../output/analyses/supplement/browser_bistabili
 ## Read in .csv file produced from above code (to avoid having to rerun analyses)
 ```{r}
 
-browser_bistability <- read_csv(file = "../output/analyses/supplement/browser_bistability-all.csv")
+browser_bistability <- read_csv(file = "../../output/analyses/supplement/browser_bistability-all.csv")
 
 ```
 
@@ -155,7 +155,7 @@ custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", 
 # custom_colors <- colorRampPalette(c("#FCF0D1", "#FBD9CC", "#FBC3C7", "#FAACC2", "#FA96BD", "#F97FB7", "#F969B2", "#F852AD", "#F83CA8", "#F725A3"))
 
 
-pdf("../output/figures/Fig_S10_v1.pdf",width=5,height=9)
+pdf("../output/figures/Fig_S10.pdf",width=5,height=9)
 
 # quartz()
 ggplot(browser_bistability, aes(Fishing_Pressure, Initial_Coral)) +

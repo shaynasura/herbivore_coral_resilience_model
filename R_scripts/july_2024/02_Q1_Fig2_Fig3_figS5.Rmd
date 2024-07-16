@@ -139,6 +139,9 @@ qq_all <- read_csv(file = "../../output/analyses/Q1/question_1_all_results.csv")
 # Making figure of all results - supplemental figure S5.
 ```{r}
 
+# reminder of f_values used in above analyses
+f_values <- seq(0, 0.7, by = 0.1)
+
 # Streamlined version for setting Fishing_ID labels
 fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
 names(fishing_labels) <- f_values
@@ -152,21 +155,21 @@ custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", 
 
 
 
-# Create a custom function to generate alphabetical tags
-generate_tags <- function(n) {
-  LETTERS[1:n]
-}
-
-# Add a column with facet tags
-facet_tags <- generate_tags(nrow(unique(qq_all[, c("Fishing_ID", "Id")])))
-
-
-# Assign facet tags uniquely to each combination of Fishing_ID and Id
-qq_all <- qq_all %>%
-  arrange(Id, Fishing_ID) %>%
-  group_by(Id, Fishing_ID) %>%
-  mutate(Facet_Tag = facet_tags[cur_group_id()]) %>%
-  ungroup()
+# # Create a custom function to generate alphabetical tags
+# generate_tags <- function(n) {
+#   LETTERS[1:n]
+# }
+# 
+# # Add a column with facet tags
+# facet_tags <- generate_tags(nrow(unique(qq_all[, c("Fishing_ID", "Id")])))
+# 
+# 
+# # Assign facet tags uniquely to each combination of Fishing_ID and Id
+# qq_all <- qq_all %>%
+#   arrange(Id, Fishing_ID) %>%
+#   group_by(Id, Fishing_ID) %>%
+#   mutate(Facet_Tag = facet_tags[cur_group_id()]) %>%
+#   ungroup()
 
 
 # Create the plot
@@ -181,20 +184,22 @@ ggplot(data = qq_all, aes(Grazers, Browsers)) +
                      breaks = c(0, 0.3, 0.6, 0.9), 
                      labels = c(0, 0.3, 0.6, 0.9)) +
   labs(fill = "Final\nCoral\nCover") +
-  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
-  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
   facet_rep_grid(Fishing_ID ~ Id) +
   coord_capped_cart(bottom = 'both', left = 'both') +
   theme_classic(base_size = 10, base_family = "Times") +
   theme(axis.title = element_text(size = 11, face = "bold")) +
   theme(strip.text.x = element_text(size = 11)) +
-  theme(strip.text.y = element_text(size = 11, angle = 0)) +
-  theme(panel.spacing = unit(1, "lines")) +  # Adds space for facet tags
-  geom_richtext(aes(label = Facet_Tag, family = "Times"), 
-                x = Inf, y = Inf, 
-                hjust = 1.1, vjust = 1.1, 
-                size = 4,
-                fill = NA, label.color = NA)
+  theme(strip.text.y = element_text(size = 11, angle = 0))
+
+# +
+#   theme(panel.spacing = unit(1, "lines")) +  # Adds space for facet tags
+#   geom_richtext(aes(label = Facet_Tag, family = "Times"), 
+#                 x = Inf, y = Inf, 
+#                 hjust = 1.1, vjust = 1.1, 
+#                 size = 4,
+#                 fill = NA, label.color = NA)
 
 dev.off()
 
@@ -222,6 +227,9 @@ qq_small <- qq_all %>%
   filter(Fishing_Pressure %in% main_fishing) %>% 
   mutate(Fishing_ID = factor(Fishing_Pressure, levels = f_values, labels = fishing_labels))
 
+# # check that we subset the fishing pressure scenarios to show in main text figure
+# unique(qq_small$Fishing_Pressure)
+
 
 # Define the custom color scale
 custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
@@ -246,8 +254,6 @@ qq_small <- qq_small %>%
 
 
 
-
-
 # Create the plot
 pdf("../../output/figures/Fig_2.pdf", width = 7, height = 5.7)
 
@@ -259,9 +265,22 @@ ggplot(data = qq_small, aes(Grazers, Browsers)) +
   scale_y_continuous("Initial Browser Abundance",
                      breaks = c(0, 0.3, 0.6, 0.9), 
                      labels = c(0, 0.3, 0.6, 0.9)) +
-  labs(fill = "Final\nCoral\nCover") +
-  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
-  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  # labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  guides(fill = guide_colorbar(title.position = "top",
+                               title.hjust = 0.5,
+                               label.hjust = 0.5,
+                               barheight = unit(6, "lines"),
+                               barwidth = unit(1, "lines"),
+                               draw.ulim = FALSE,
+                               draw.llim = FALSE,
+                               frame.colour = "black",
+                               ticks.colour = "black",
+                               label.position = "right",
+                               label.theme = element_text(size = 8),
+                               title = "Final\nCoral\nCover",
+                               title.theme = element_text(size = 11))) +
   facet_rep_grid(Fishing_ID ~ Id) +
   coord_capped_cart(bottom = 'both', left = 'both') +
   theme_classic(base_size = 10, base_family = "Times") +

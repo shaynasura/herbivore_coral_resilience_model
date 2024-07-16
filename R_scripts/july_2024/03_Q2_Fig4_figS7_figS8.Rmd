@@ -147,13 +147,6 @@ write_csv(algae_all, file = "../../output/analyses/Q2/question_2_all_results.csv
 
 algae_all <- read_csv(file = "../../output/analyses/Q2/question_2_all_results.csv")
 
-glimpse(algae_all)
-max(algae_all$Initial_Macroalgae)
-max(algae_all$Initial_Turf)
-min(algae_all$Initial_Macroalgae)
-min(algae_all$Initial_Turf)
-range(algae_all$Initial_Turf)
-range(algae_all$Initial_Macroalgae)
 
 ```
 
@@ -167,29 +160,32 @@ range(algae_all$Initial_Macroalgae)
 custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
 
 
+# Reorder factor levels
+algae_all$Id <- factor(algae_all$Id, levels = c("Browser\ndominated", "Grazer\ndominated", "Generalist\ndominated"))
+
+# Verify the new order
+levels(algae_all$Id)
+
+
 # Create the plot
 pdf("../../output/figures/fig_S7.pdf", width = 6, height = 12)
 
 ggplot(data = algae_all, aes(Initial_Turf, Initial_Macroalgae)) +
   geom_tile(aes(fill = Final_Coral)) +
-  scale_x_continuous("Initial Turf Abundance"
-                     ,
-                     # limits = c(0, 0.8),
+  scale_x_continuous("Initial Turf Abundance",
+                     # expand = c(0,0),                     # remove padding between axis line and data
                      breaks = c(0,0.2,0.4,0.6,0.8),
-                     labels = c(0,0.2,0.4,0.6,0.8)
-                     ) +
-  scale_y_continuous("Initial Macroalgal Abundance"
-                     ,
-                     # limits = c(0, 0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +          
+  scale_y_continuous("Initial Macroalgal Abundance",
+                     # expand = c(0,0),                     # remove padding between axis line and data
                      breaks = c(0,0.2,0.4,0.6,0.8),
-                     labels = c(0,0.2,0.4,0.6,0.8)
-                     ) +
+                     labels = c(0,0.2,0.4,0.6,0.8)) +       
   labs(fill = "Final\nCoral\nCover") +
   scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
   scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
   facet_rep_grid(Fishing_ID ~ Id) +
-  # coord_cartesian(xlim = c(0, 0.8), ylim = c(0, 0.8)) + # Set the display limits
-  # coord_capped_cart(bottom = 'both', left = 'both') +
+  coord_capped_cart(ylim = c(0,0.8), xlim = c(0,0.8),      # set axes limits here to avoid warnings about rows being removed.
+                    bottom = 'both', left = 'both') +      # this caps the axes lines at the outer tick marks.
   theme_classic(base_size = 10, base_family = "Times") +
   theme(axis.title = element_text(size = 11, face = "bold")) +
   theme(strip.text.x = element_text(size = 11)) +
@@ -230,6 +226,15 @@ unique(algae_small$Fishing_Pressure)
 
 
 
+# Reorder factor levels
+algae_small$Id <- factor(algae_small$Id, levels = c("Browser\ndominated", "Grazer\ndominated", "Generalist\ndominated"))
+# algae_small$Id <- factor(algae_small$Id, levels = c("Browser-dominated", "Grazer-dominated", "Generalist-dominated"))         # this messes things up for some reason
+
+# Verify the new order
+levels(algae_small$Id)
+
+
+
 # Define the custom color scale
 custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
 
@@ -252,24 +257,32 @@ algae_small <- algae_small %>%
   ungroup()
 
 
-
-
 # Create the plot
 pdf("../../output/figures/Fig_4.pdf", width = 7, height = 5.7)
 
 ggplot(data = algae_small, aes(Initial_Turf, Initial_Macroalgae)) +
   geom_tile(aes(fill = Final_Coral)) +
-  scale_x_continuous("Initial Turf Abundance",
-                     breaks = c(0,0.2,0.4,0.6,0.8),
-                     labels = c(0,0.2,0.4,0.6,0.8)) +
-  scale_y_continuous("Initial Macroalgal Abundance",
-                     breaks = c(0,0.2,0.4,0.6,0.8),
-                     labels = c(0,0.2,0.4,0.6,0.8)) +
-  labs(fill = "Final\nCoral\nCover") +
-  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
-  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.9)) +
+  scale_x_continuous("Initial Turf Abundance") +
+  scale_y_continuous("Initial Macroalgal Abundance") +
+  # labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  guides(fill = guide_colorbar(title.position = "top",
+                               title.hjust = 0.5,
+                               label.hjust = 0.5,
+                               barheight = unit(6, "lines"),
+                               barwidth = unit(1, "lines"),
+                               draw.ulim = FALSE,
+                               draw.llim = FALSE,
+                               frame.colour = "black",
+                               ticks.colour = "black",
+                               label.position = "right",
+                               label.theme = element_text(size = 8),
+                               title = "Final\nCoral\nCover",
+                               title.theme = element_text(size = 11))) +
   facet_rep_grid(Fishing_ID ~ Id) +
-  coord_capped_cart(bottom = 'both', left = 'both') +
+  coord_capped_cart(ylim = c(0,0.8), xlim = c(0,0.8),      # set axes limits here to avoid warnings about rows being removed.
+                    bottom = 'both', left = 'both') +      # this caps the axes lines at the outer tick marks.
   theme_classic(base_size = 10, base_family = "Times") +
   theme(axis.title = element_text(size = 11, face = "bold")) +
   theme(strip.text.x = element_text(size = 11)) +
@@ -282,6 +295,68 @@ ggplot(data = algae_small, aes(Initial_Turf, Initial_Macroalgae)) +
                 fill = NA, label.color = NA)
 
 dev.off()
+
+```
+
+
+```{r echo=false, eval=false}
+
+## Trying to get a solution to add the panel labels (A-I) the appropriate panels without them being printed repeatedly on each panel. I haven't got this to work yet.
+
+
+# # Create a custom function to generate alphabetical tags
+# generate_tags <- function(n) {
+#   LETTERS[1:n]
+# }
+# 
+# # Add a column with facet tags
+# facet_tags <- generate_tags(nrow(unique(algae_small[, c("Fishing_ID", "Id")])))
+# 
+# 
+# # Assign facet tags uniquely to each combination of Fishing_ID and Id
+# algae_small <- algae_small %>%
+#   arrange(Id, Fishing_ID) %>%
+#   group_by(Id, Fishing_ID) %>%
+#   mutate(Facet_Tag = facet_tags[cur_group_id()]) %>%
+#   ungroup()
+# 
+# 
+# # Create a data frame with the unique facet combinations and their tags
+# facet_label_positions <- algae_small %>%
+# 
+# 
+# # Modify the plot to use the custom labels
+# pdf("../../output/figures/Fig_4_v2.pdf", width = 7, height = 5.7)
+# 
+# 
+# p <- ggplot(data = algae_small, aes(Initial_Turf, Initial_Macroalgae)) +
+#   geom_tile(aes(fill = Final_Coral)) +
+#   scale_x_continuous("Initial Turf Abundance") +
+#   scale_y_continuous("Initial Macroalgal Abundance") +
+#   labs(fill = "Final\nCoral\nCover") +
+#   scale_fill_gradientn(colors = custom_colors(50), limits = c(0, 0.8)) +
+#   scale_colour_gradientn(colors = custom_colors(50), limits = c(0, 0.8)) +
+#   facet_rep_grid(Fishing_ID ~ Id) +
+#   coord_capped_cart(ylim = c(0, 0.8), xlim = c(0, 0.8), bottom = 'both', left = 'both') +
+#   theme_classic(base_size = 10, base_family = "Times") +
+#   theme(axis.title = element_text(size = 11, face = "bold"),
+#         strip.text.x = element_text(size = 11),
+#         strip.text.y = element_text(size = 11, angle = 0),
+#         panel.spacing = unit(1, "lines"))
+# 
+# # Add the facet tags as annotations
+# for (i in 1:nrow(facet_label_positions)) {
+#   p <- p + annotate("text", label = facet_label_positions$Facet_Tag[i], 
+#                     x = 0.1, y = 0.75, hjust = 0, vjust = 1, 
+#                     data = subset(algae_small, 
+#                                   Id == facet_label_positions$Id[i] & 
+#                                   Fishing_ID == facet_label_positions$Fishing_ID[i]))
+# }
+# 
+# print(p)
+# 
+# dev.off()
+
 
 ```
 
@@ -303,13 +378,9 @@ algae_small$Turf_or_Macro<-ifelse(algae_small$Final_Turf > algae_small$Final_Mac
 # Create the plot
 S8_main_plot <- ggplot(data = algae_small, aes(Initial_Turf, Initial_Macroalgae)) +
   geom_tile(aes(fill = Turf_or_Macro)) +
-  scale_x_continuous("Initial Turf Abundance",
-                     breaks = c(0,0.2,0.4,0.6,0.8),
-                     labels = c(0,0.2,0.4,0.6,0.8)) +
-  scale_y_continuous("Initial Macroalgal Abundance",
-                     breaks = c(0,0.2,0.4,0.6,0.8),
-                     labels = c(0,0.2,0.4,0.6,0.8)) +
-  labs(fill = "") +
+  scale_x_continuous("Initial Turf Abundance") +
+  scale_y_continuous("Initial Macroalgal Abundance") +
+  # labs(fill = "") +
   scale_fill_continuous_divergingx(palette = "Fall",
                                    limits=c(-1,1),
                                    breaks = c(-1, -0.5, 0, 0.5, 1),
@@ -330,7 +401,8 @@ S8_main_plot <- ggplot(data = algae_small, aes(Initial_Turf, Initial_Macroalgae)
   scale_colour_continuous_divergingx(palette = "Fall",
                                      limits=c(-1,1)) +
   facet_rep_grid(Fishing_ID ~ Id) +
-  coord_capped_cart(bottom = 'both', left = 'both') +
+  coord_capped_cart(ylim = c(0,0.8), xlim = c(0,0.8),      # set axes limits here to avoid warnings about rows being removed.
+                    bottom = 'both', left = 'both') +      # this caps the axes lines at the outer tick marks.
   theme_classic(base_size = 10, base_family = "Times") +
   theme(axis.title = element_text(size = 11, face = "bold")) +
   theme(strip.text.x = element_text(size = 11)) +
@@ -344,7 +416,7 @@ S8_main_plot <- ggplot(data = algae_small, aes(Initial_Turf, Initial_Macroalgae)
 
 
 S8_final_plot <- ggdraw(S8_main_plot) +
-  draw_label("Cover of\nMacroalgae", x = 0.94, y = 0.33, hjust = 0.5, size = 11, angle = 0, fontfamily = "Times")
+  draw_label("Cover of\nMacroalgae", x = 0.94, y = 0.325, hjust = 0.5, size = 11, angle = 0, fontfamily = "Times")
 
 S8_final_plot
 
