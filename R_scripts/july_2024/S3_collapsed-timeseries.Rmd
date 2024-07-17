@@ -1,0 +1,279 @@
+---
+title: "Supplemental Figure S3 - Timeseries comparison of 'basic' versus 'collapsed' models"
+author: "Shayna A. Sura"
+date: "2024-07-16"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+
+library(deSolve)
+library(reshape2)
+library(viridis)
+library(viridisLite)
+library(gridExtra)
+library(tidyverse) # includes and loads the packages listed below
+# library(readr)
+# library(tidyr)
+# library(dplyr)
+# library(ggplot2)
+# library(lubridate)
+
+library(here) # helps with paths for files
+library(purrr) # vectorized coding approaches for faster analyses
+library(scales)
+library(ggtext)
+library(lemon)
+library(cowplot)
+library(grid)
+
+```
+
+
+
+```{r source model code and parameters}
+
+source("0.1_basic_model.R")
+source("0.2_full_model.R")
+
+```
+
+
+## 'Basic' Model simulations
+```{r}
+
+# # Initial Conditions:
+# H0<-0.9
+# C0<-0.75
+# A0<-0.1
+# S0 <- 1 - C0 - A0
+# 
+# # reminder of baseline parameter values:
+# pars<-c(bc<-0.3,
+#         ba<- 0.8,
+#         ic<-0.05,
+#         ia<-0.05,
+#         dc<-0.1,
+#         r<-1,
+#         g<-1,
+#         eta<-1,
+#         alpha<-0.5,
+#         sigma<-0.6,
+#         f<-0.1)
+
+## Run the model again with fishing pressure f = 0.1
+Basic_M_output<-lsoda(c(Herbivores=H0,Coral=C0,Algae=A0), tseq, Basic_Model, pars)
+Basic_M_output=as.data.frame(Basic_M_output)
+
+
+## Run the model again with a higher fishing pressure f = 0.5
+pars[11]=0.5
+Basic_M_output_2<-lsoda(c(Herbivores=H0,Coral=C0,Algae=A0), tseq, Basic_Model, pars)
+Basic_M_output_2=as.data.frame(Basic_M_output_2)
+
+
+## Run the model again with an even higher fishing pressure f = 0.9
+pars[11]=0.9
+Basic_M_output_3<-lsoda(c(Herbivores=H0,Coral=C0,Algae=A0), tseq, Basic_Model, pars)
+Basic_M_output_3=as.data.frame(Basic_M_output_3)
+
+```
+
+## 'Collapsed' Model Simulations
+```{r}
+
+# Initial Conditions to allow our full/expanded model to collapse down to the van de Leemput (vdL) et al. (2016) model
+G0<-0.45
+R0<-0
+B0<-0.45
+C0<-0.75
+T0<-0.05
+M0<-0.05
+S0 <- 1 - T0 - C0 - M0
+
+
+# # reminder of parameter values used here:
+# P2_pars<-c(bc<-0.3,
+#            bt<-0.8,      #use the same value as bm from basic model
+#            bm<-0.8,      #use the same value as bm from basic model
+#            ic<-0.05,
+#            it<-0.025,    #need two of these, one for turf and one for macroalgae
+#            im<-0.025,    #need two of these, one for turf and one for macroalgae
+#            dc<-0.1,
+#            r<-1,
+#            gt<-2,       #need two of these, one for turf and one for macroalgae
+#            gm<-2,       #need two of these, one for turf and one for macroalgae
+#            etaT<-1,     #need two of these, one for turf and one for macroalgae
+#            etaM<-1,     #need two of these, one for turf and one for macroalgae
+#            alphaT<-0.5,
+#            alphaM<-0.5,
+#            sigma<-0.6,
+#            f<-0.1,
+#            gamma<-0)
+
+
+## Run the model with a fishing pressure f = 0.1
+P2_output<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, P2_pars)
+P2_output=as.data.frame(P2_output)
+P2_output$Space= 1 - P2_output$Coral - P2_output$Turf - P2_output$Macroalgae
+P2_output$Herbivores = P2_output$Grazers+P2_output$Generalists+P2_output$Browsers
+P2_output$Algae = P2_output$Turf+P2_output$Macroalgae
+
+
+
+# Compare expanded model output to basic model output.
+Herbs<-(round(P2_output$Herbivores,digits=4) == round(Basic_M_output$Herbivores,digits=4))
+Herb.Trues<-sum(Herbs==TRUE)
+Herb.Trues
+Algals<-(round(P2_output$Algae,digits=4) == round(Basic_M_output$Algae,digits=4))
+Algals.Trues<-sum(Algals==TRUE)
+Algals.Trues
+Coral<-(round(P2_output$Coral,digits=4) == round(Basic_M_output$Coral,digits=4))
+Coral.Trues<-sum(Coral==TRUE)
+Coral.Trues
+
+
+
+## Run the model again with a higher fishing pressure f = 0.5
+P2_pars[16]=0.5
+P2_output_2<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, P2_pars)
+P2_output_2=as.data.frame(P2_output_2)
+P2_output_2$Space= 1 - P2_output_2$Coral - P2_output_2$Turf - P2_output_2$Macroalgae
+P2_output_2$Herbivores = P2_output_2$Grazers+P2_output_2$Generalists+P2_output_2$Browsers
+P2_output_2$Algae = P2_output_2$Turf+P2_output_2$Macroalgae
+#tail(P2_output_2)
+
+
+## Run the model again with an even higher fishing pressure f = 0.9
+P2_pars[16]=0.9
+P2_output_3<-lsoda(c(Grazers =G0, Generalists =R0, Browsers =B0,
+                   Coral = C0,Turf = T0,Macroalgae=M0),
+                 P2_tseq, P2_Model, P2_pars)
+P2_output_3=as.data.frame(P2_output_3)
+P2_output_3$Space= 1 - P2_output_3$Coral - P2_output_3$Turf - P2_output_3$Macroalgae
+P2_output_3$Herbivores = P2_output_3$Grazers+P2_output_3$Generalists+P2_output_3$Browsers
+P2_output_3$Algae = P2_output_3$Turf+P2_output_3$Macroalgae
+
+```
+
+
+
+Subset timepoints to make figures
+```{r}
+
+## subset time points at which to actually plot output
+
+# basic model time points
+basic_times <- c(0, 1, seq(2,200, by=2))
+reduced_Basic<-subset(Basic_M_output,Basic_M_output$time %in% basic_times)
+reduced_Basic_2<-subset(Basic_M_output_2,Basic_M_output_2$time %in% basic_times)
+reduced_Basic_3<-subset(Basic_M_output_3,Basic_M_output_3$time %in% basic_times)
+
+
+# collapsed model time points
+p2_times <- c(0, 1, 2, 3, seq(4,200,by=4))
+reduced_p2<-subset(P2_output,P2_output$time %in% p2_times)
+reduced_p2_2<-subset(P2_output_2,P2_output_2$time %in% p2_times)
+reduced_p2_3<-subset(P2_output_3,P2_output_3$time %in% p2_times)
+
+```
+
+
+
+
+```{r color hexcodes}
+
+# Grazer: DCE6F2
+# Generalist: 95B3D7
+# Browser: 376092
+# Herbivores: 4A7EFF
+# Coral: B5179E
+# Turf: CA6030
+# Macroalgae: 3C5941
+# Algae: 9BBB59
+
+```
+
+
+
+```{r}
+
+# Create the plot
+pdf("../../output/figures/fig_S3.pdf", width=3.75, height=7)
+
+par(mfrow=c(3,1),
+    mar=c(4,5,2.5,2),
+    family = "Times")
+
+plot(reduced_Basic$time, reduced_Basic$Herbivores,
+     pch = 22,
+     col = "#4A7EFF",
+     bg = "#4A7EFF",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,200),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.1",
+     cex.main=1.6)
+points(reduced_Basic$time, reduced_Basic$Algae, col="#9BBB59", pch=22, bg = "#9BBB59")
+points(reduced_Basic$time, reduced_Basic$Coral, col="#B5179E", pch=22, bg = "#B5179E")
+points(reduced_p2$time, reduced_p2$Herbivores, col="#BECEF9", pch=24, bg = "#BECEF9")
+points(reduced_p2$time, reduced_p2$Coral, col="#E2ACD9", pch=24, bg = "#E2ACD9")
+points(reduced_p2$time, reduced_p2$Algae, col="#D9E2C2", pch=24, bg = "#D9E2C2")
+legend(x=120,y=0.65,
+       c("basic Herbivores","collapsed Herbivores","basic Algae","collapsed Algae","basic Coral","collapsed Coral"),
+       pch=c(15,17,15,17,15,17),
+       col=c("#4A7EFF","#BECEF9","#9BBB59","#D9E2C2","#B5179E","#E2ACD9"),
+       cex=0.85)
+
+
+plot(reduced_Basic_2$time, reduced_Basic_2$Herbivores,
+     pch = 22,
+     col = "#4A7EFF",
+     bg = "#4A7EFF",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,200),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.5",
+     cex.main=1.6)
+points(reduced_Basic_2$time, reduced_Basic_2$Algae, col="#9BBB59", pch=22, bg = "#9BBB59")
+points(reduced_Basic_2$time, reduced_Basic_2$Coral, col="#B5179E", pch=22, bg = "#B5179E")
+points(reduced_p2_2$time, reduced_p2_2$Herbivores, col="#BECEF9", pch=24, bg = "#BECEF9")
+points(reduced_p2_2$time, reduced_p2_2$Coral, col="#E2ACD9", pch=24, bg = "#E2ACD9")
+points(reduced_p2_2$time, reduced_p2_2$Algae, col="#D9E2C2", pch=24, bg = "#D9E2C2")
+
+
+plot(reduced_Basic_3$time, reduced_Basic_3$Herbivores,
+     pch = 22,
+     col = "#4A7EFF",
+     bg = "#4A7EFF",
+     xlab="Time",
+     ylab="Cover / Abundance",
+     ylim=c(0,1),
+     xlim=c(0,200),
+     cex.lab=1.5,
+     cex.axis=1.3,
+     main = "Fishing Pressure = 0.9",
+     cex.main=1.6)
+points(reduced_Basic_3$time, reduced_Basic_3$Algae, col="#9BBB59", pch=22, bg = "#9BBB59")
+points(reduced_Basic_3$time, reduced_Basic_3$Coral, col="#B5179E", pch=22, bg = "#B5179E")
+points(reduced_p2_3$time, reduced_p2_3$Herbivores, col="#BECEF9", pch=24, bg = "#BECEF9")
+points(reduced_p2_3$time, reduced_p2_3$Coral, col="#E2ACD9", pch=24, bg = "#E2ACD9")
+points(reduced_p2_3$time, reduced_p2_3$Algae, col="#D9E2C2", pch=24, bg = "#D9E2C2")
+
+dev.off()
+
+```
+
+
+

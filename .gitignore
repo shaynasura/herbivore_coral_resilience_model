@@ -1,3 +1,8 @@
+# specific folders
+output/figures/test_figures
+R_scripts/previous
+
+
 # History files
 .Rhistory
 .Rapp.history
