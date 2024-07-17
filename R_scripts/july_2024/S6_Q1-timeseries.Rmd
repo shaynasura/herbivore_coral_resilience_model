@@ -159,7 +159,7 @@ sc_2$Algae = sc_2$Turf+sc_2$Macroalgae
 ```{r Scenario 3}
 
 
-## Scenario 1 - Final Turf Cover is High
+## Scenario 3 - Final Turf Cover is High
 # benthic initial conditions
 C0<-0.15
 M0<-0.0
