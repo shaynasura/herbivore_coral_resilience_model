@@ -1,0 +1,1095 @@
+---
+title: "S13_sensitivity-analyses"
+author: "Shayna A. Sura"
+date: "2025-03-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+
+library(deSolve)
+library(reshape2)
+library(viridis)
+library(gridExtra)
+library(tidyverse) # includes and loads the packages listed below
+# library(readr)
+# library(tidyr)
+# library(dplyr)
+# library(ggplot2)
+# library(lubridate)
+
+library(here) # helps with paths for files
+library(purrr) # vectorized coding approaches for faster analyses
+library(scales)
+library(lemon) #for facet_rep_grid function for plotting
+
+```
+
+
+
+
+# Our Model Set up
+```{r source model code and parameters}
+
+source("0.2_full_model.R")
+
+```
+
+
+#### parameter values used for model analyses for reference
+
+```{r}
+
+# #Generate a vector of parameter values - for our full / expanded model
+# hh_pars<-c(bc<-0.3, bt<-0.8, bm<-0.5,     #expansion of current benthic cover
+#            ic<-0.05, it<-0.05, im<-0,     #import of propagules
+#            dc<-0.1,                       #coral mortality
+#            r<-1,                          #herbivore growth rate
+#            gt<-2, gm<-1,                  #algae mortality
+#            etaT<-0, etaM<-1,              #algae handling time
+#            alphaT<-0.25, alphaM<-0.5,     #competitive effect on coral
+#            sigma<-0.6,                    #relationship between coral & herbivores
+#            f<-0.5,                        #fishing pressure
+#            gamma<-0.1)                    #transition from turf to macroalgae
+
+
+```
+
+
+
+# Sensitivity Analysis 1
+## Competitive effects of Turf and Macroalgae on Coral (alphaT and alphaM values)
+
+```{r}
+
+
+# Define the initial conditions for which to evaluate
+
+# turf_values<-seq(0, 0.7, by=0.01)
+# macro_values<-seq(0, 0.7, by=0.01)
+
+# algae_initials <- expand.grid(turf_values, macro_values, f_values)
+# colnames(algae_initials) <- c("Turf", "Macroalgae", "Fishing_Pressure")
+
+alphaT_values <- seq(0.1, 0.9, by=0.01)
+alphaM_values <- seq(0.1, 0.9, by=0.01)
+f_values<-seq(0.1, 0.7, by=0.1)
+
+alpha_initials <- expand.grid(alphaT_values, alphaM_values, f_values)
+colnames(alpha_initials) <- c("alphaT", "alphaM", "Fishing_Pressure")
+
+# # Filter rows where the total initial algae is less than or equal to 0.7
+# final_algae <- subset(algae_initials, rowSums(algae_initials[, c("Turf", "Macroalgae")]) <= 0.7)
+
+# Define a function to run the model for a given set of initial conditions and herbivore abundances
+run_model <- function(initial_conditions, G0, B0, R0) {
+  C0 <- 0.15
+  M0 <- 0.0
+  T0 <- 0.7
+  # T0 <- initial_conditions["Turf"]
+  # M0 <- initial_conditions["Macroalgae"]
+  S0 <- 1 - C0 - T0 - M0
+  
+  initial_state <- c(Grazers = G0, Generalists = R0, Browsers = B0, Coral = C0, Turf = T0, Macroalgae = M0)
+  
+  # set the fishing pressure
+  hh_pars[16] <- initial_conditions["Fishing_Pressure"] # set the fishing pressure
+  
+  #set the alphaT values
+  hh_pars[13] <- initial_conditions["alphaT"]
+  
+  #set the alphaM values
+  hh_pars[14] <- initial_conditions["alphaM"]
+  
+  zz_output <- lsoda(initial_state, P2_tseq, P2_Model, hh_pars)
+  zz_output_new <- as.data.frame(zz_output)
+  
+  final_values <- c(
+    # Initial_Turf = T0,
+    # Initial_Macroalgae = M0,
+    alphaT = initial_conditions["alphaT"],
+    alphaM = initial_conditions["alphaM"],
+    Fishing_Pressure = initial_conditions["Fishing_Pressure"],
+    Final_Coral = tail(zz_output_new$Coral, 1),
+    Final_Turf = tail(zz_output_new$Turf, 1),
+    Final_Macroalgae = tail(zz_output_new$Macroalgae, 1)
+  )
+  
+  return(final_values)
+}
+
+# Define initial herbivore abundances for different scenarios
+herbivore_scenarios <- list(
+  Herbivores_even = c(Grazers = 0.3, Browsers = 0.3, Generalists = 0.3),
+  Grazer_dominated = c(Grazers = 0.6, Browsers = 0.15, Generalists = 0.15),
+  Browser_dominated = c(Grazers = 0.15, Browsers = 0.6, Generalists = 0.15),
+  Generalist_dominated = c(Grazers = 0.15, Browsers = 0.15, Generalists = 0.6)
+)
+
+
+# Run simulations for each herbivore scenario
+results <- lapply(names(herbivore_scenarios), function(scenario) {
+  initial_conditions <- cbind(alpha_initials, scenario)
+  final_values <- apply(alpha_initials, 1, run_model,
+                        G0 = herbivore_scenarios[[scenario]]["Grazers"],
+                        B0 = herbivore_scenarios[[scenario]]["Browsers"],
+                        R0 = herbivore_scenarios[[scenario]]["Generalists"])
+
+  final_values_df <- as.data.frame(t(final_values))
+  colnames(final_values_df) <- c("alphaT", "alphaM", "Fishing_Pressure",
+                                 "Final_Coral", "Final_Turf", "Final_Macroalgae")
+  final_values_df$Id <- scenario
+  return(final_values_df)
+})
+
+
+
+# Combine results into one data frame
+alpha_all <- do.call(rbind, results)
+
+# Reorder levels of herbivores for plotting
+herbivore_labels <- c("Herbivores\neven", "Generalist\ndominated", "Browser\ndominated", "Grazer\ndominated")
+names(herbivore_labels) <- c("Herbivores_even","Generalist_dominated", "Browser_dominated", "Grazer_dominated")
+
+# Getting names for Fishing Pressure for plotting
+fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
+names(fishing_labels) <- f_values
+
+# Set Fishing_Pressure and Herbivore_Scenario ID levels
+alpha_all <- alpha_all %>% 
+  mutate(Id = factor(Id, levels = names(herbivore_labels), labels = herbivore_labels)) %>% 
+  mutate(Fishing_ID = factor(Fishing_Pressure, levels = f_values, labels = fishing_labels))
+
+
+# levels(alpha_all_test$Id)
+
+
+
+```
+
+
+# Write simulation results to .csv file
+```{r}
+
+# export simulation results to .csv file
+write_csv(alpha_all, file = "../../output/analyses/supplement/sensitivity_analysis_1.csv")
+
+```
+
+
+## Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+alpha_all <- read_csv(file = "../../output/analyses/supplement/sensitivity_analysis_1.csv")
+
+```
+
+
+
+
+## Sensitivity Analysis 1 - Plotting results
+
+```{r}
+
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Reorder factor levels
+alpha_all$Id <- factor(alpha_all$Id, levels = c("Herbivores\neven", "Browser\ndominated", "Grazer\ndominated", "Generalist\ndominated"))
+
+# Verify the new order
+levels(alpha_all$Id)
+
+
+# Create the plot
+pdf("../../output/figures/fig_S13_v3.pdf", width = 9, height = 12)
+
+ggplot(data = alpha_all, aes(alphaT, alphaM)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("alphaT - Turf effect on coral",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0, 0.3, 0.6, 0.9),
+                     labels = c(0,0.3,0.6,0.9)) +
+                     # breaks = c(0,0.2,0.4,0.6,0.8),
+                     # labels = c(0,0.2,0.4,0.6,0.8)) +          
+  scale_y_continuous("alphaM - Macroalgal effect on coral",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0, 0.3, 0.6, 0.9),
+                     labels = c(0,0.3,0.6,0.9)) +      
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(ylim = c(0,0.9), xlim = c(0,0.9),      # set axes limits here to avoid warnings about rows being removed.
+                    bottom = 'both', left = 'both') +      # this caps the axes lines at the outer tick marks.
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+
+
+dev.off()
+
+```
+
+
+
+# Sensitivity Analysis 2
+## Grazing rate on turf and macroalgae (gT and gM values)
+```{r}
+
+# Define the initial conditions for which to evaluate
+gT_values <- seq(0, 15, by=0.5)
+gM_values <- seq(0, 15, by=0.5)
+f_values<-seq(0.1, 0.7, by=0.1)
+
+g_initials <- expand.grid(gT_values, gM_values, f_values)
+colnames(g_initials) <- c("gT", "gM", "Fishing_Pressure")
+
+# # Filter rows where the total initial algae is less than or equal to 0.7
+# final_algae <- subset(algae_initials, rowSums(algae_initials[, c("Turf", "Macroalgae")]) <= 0.7)
+
+# Define a function to run the model for a given set of initial conditions and herbivore abundances
+run_model <- function(initial_conditions, G0, B0, R0) {
+  C0 <- 0.15
+  M0 <- 0.0
+  T0 <- 0.7
+  # T0 <- initial_conditions["Turf"]
+  # M0 <- initial_conditions["Macroalgae"]
+  S0 <- 1 - C0 - T0 - M0
+  
+  initial_state <- c(Grazers = G0, Generalists = R0, Browsers = B0, Coral = C0, Turf = T0, Macroalgae = M0)
+  
+  # set the fishing pressure
+  hh_pars[16] <- initial_conditions["Fishing_Pressure"] # set the fishing pressure
+  
+  #set the gT values
+  hh_pars[9] <- initial_conditions["gT"]
+  
+  #set the gM values
+  hh_pars[10] <- initial_conditions["gM"]
+  
+  zz_output <- lsoda(initial_state, P2_tseq, P2_Model, hh_pars)
+  zz_output_new <- as.data.frame(zz_output)
+  
+  final_values <- c(
+    # Initial_Turf = T0,
+    # Initial_Macroalgae = M0,
+    gT = initial_conditions["gT"],
+    gM = initial_conditions["gM"],
+    Fishing_Pressure = initial_conditions["Fishing_Pressure"],
+    Final_Coral = tail(zz_output_new$Coral, 1),
+    Final_Turf = tail(zz_output_new$Turf, 1),
+    Final_Macroalgae = tail(zz_output_new$Macroalgae, 1)
+  )
+  
+  return(final_values)
+}
+
+# Define initial herbivore abundances for different scenarios
+herbivore_scenarios <- list(
+  Herbivores_even = c(Grazers = 0.3, Browsers = 0.3, Generalists = 0.3),
+  Grazer_dominated = c(Grazers = 0.6, Browsers = 0.15, Generalists = 0.15),
+  Browser_dominated = c(Grazers = 0.15, Browsers = 0.6, Generalists = 0.15),
+  Generalist_dominated = c(Grazers = 0.15, Browsers = 0.15, Generalists = 0.6)
+)
+
+
+# Run simulations for each herbivore scenario
+results <- lapply(names(herbivore_scenarios), function(scenario) {
+  initial_conditions <- cbind(g_initials, scenario)
+  final_values <- apply(g_initials, 1, run_model,
+                        G0 = herbivore_scenarios[[scenario]]["Grazers"],
+                        B0 = herbivore_scenarios[[scenario]]["Browsers"],
+                        R0 = herbivore_scenarios[[scenario]]["Generalists"])
+
+  final_values_df <- as.data.frame(t(final_values))
+  colnames(final_values_df) <- c("gT", "gM", "Fishing_Pressure",
+                                 "Final_Coral", "Final_Turf", "Final_Macroalgae")
+  final_values_df$Id <- scenario
+  return(final_values_df)
+})
+
+
+
+# Combine results into one data frame
+g_all <- do.call(rbind, results)
+
+# Reorder levels of herbivores for plotting
+herbivore_labels <- c("Herbivores\neven", "Generalist\ndominated", "Browser\ndominated", "Grazer\ndominated")
+names(herbivore_labels) <- c("Herbivores_even","Generalist_dominated", "Browser_dominated", "Grazer_dominated")
+
+# Getting names for Fishing Pressure for plotting
+fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
+names(fishing_labels) <- f_values
+
+# Set Fishing_Pressure and Herbivore_Scenario ID levels
+g_all <- g_all %>% 
+  mutate(Id = factor(Id, levels = names(herbivore_labels), labels = herbivore_labels)) %>% 
+  mutate(Fishing_ID = factor(Fishing_Pressure, levels = f_values, labels = fishing_labels))
+
+
+# levels(g_all_test$Id)
+
+```
+
+
+# Write simulation results to .csv file
+```{r}
+
+# export simulation results to .csv file
+write_csv(g_all, file = "../../output/analyses/supplement/sensitivity_analysis_2.csv")
+
+```
+
+
+## Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+g_all <- read_csv(file = "../../output/analyses/supplement/sensitivity_analysis_2.csv")
+
+```
+
+
+
+
+
+
+## Sensitivity Analysis 2 - Plotting results
+```{r}
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Reorder factor levels
+g_all$Id <- factor(g_all$Id, levels = c("Herbivores\neven", "Browser\ndominated", "Grazer\ndominated", "Generalist\ndominated"))
+
+# Verify the new order
+levels(g_all$Id)
+
+
+# Create the plot
+pdf("../../output/figures/fig_S14_v1.pdf", width = 9, height = 12)
+
+ggplot(data = g_all, aes(gT, gM)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("gT - Grazing Mortality of Turf",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0, 5, 10, 15),
+                     labels = c(0,5,10,15)) +
+                     # breaks = c(0,0.2,0.4,0.6,0.8),
+                     # labels = c(0,0.2,0.4,0.6,0.8)) +          
+  scale_y_continuous("gM - Grazing Mortality of Macroalgae",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0,5,10,15),
+                     labels = c(0,5,10,15)) +      
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(ylim = c(0,15), xlim = c(0,15),      # set axes limits here to avoid warnings about rows being removed.
+                    bottom = 'both', left = 'both') +      # this caps the axes lines at the outer tick marks.
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+
+
+dev.off()
+```
+
+
+
+
+
+# Sensitivity Analysis 3
+## Import of turf propagules (iT values)
+
+```{r}
+
+
+# Define the initial conditions for which to evaluate
+iT_values <- seq(0, 0.9, by=0.01)
+iC_values <- seq(0, 0.9, by=0.01)
+f_values<-seq(0.1, 0.7, by=0.1)
+
+i_initials <- expand.grid(iT_values, iC_values, f_values)
+colnames(i_initials) <- c("iT", "iC", "Fishing_Pressure")
+
+# # Filter rows where the total initial algae is less than or equal to 0.7
+# final_algae <- subset(algae_initials, rowSums(algae_initials[, c("Turf", "Macroalgae")]) <= 0.7)
+
+# Define a function to run the model for a given set of initial conditions and herbivore abundances
+run_model <- function(initial_conditions, G0, B0, R0) {
+  C0 <- 0.15
+  M0 <- 0.0
+  T0 <- 0.7
+  # T0 <- initial_conditions["Turf"]
+  # M0 <- initial_conditions["Macroalgae"]
+  S0 <- 1 - C0 - T0 - M0
+  
+  initial_state <- c(Grazers = G0, Generalists = R0, Browsers = B0, Coral = C0, Turf = T0, Macroalgae = M0)
+  
+  # set the fishing pressure
+  hh_pars[16] <- initial_conditions["Fishing_Pressure"] # set the fishing pressure
+  
+  #set the iT values
+  hh_pars[5] <- initial_conditions["iT"]
+  
+  #set the iC values
+  hh_pars[4] <- initial_conditions["iC"]
+  
+  zz_output <- lsoda(initial_state, P2_tseq, P2_Model, hh_pars)
+  zz_output_new <- as.data.frame(zz_output)
+  
+  final_values <- c(
+    # Initial_Turf = T0,
+    # Initial_Macroalgae = M0,
+    iT = initial_conditions["iT"],
+    iC = initial_conditions["iC"],
+    Fishing_Pressure = initial_conditions["Fishing_Pressure"],
+    Final_Coral = tail(zz_output_new$Coral, 1),
+    Final_Turf = tail(zz_output_new$Turf, 1),
+    Final_Macroalgae = tail(zz_output_new$Macroalgae, 1)
+  )
+  
+  return(final_values)
+}
+
+# Define initial herbivore abundances for different scenarios
+herbivore_scenarios <- list(
+  Herbivores_even = c(Grazers = 0.3, Browsers = 0.3, Generalists = 0.3),
+  Grazer_dominated = c(Grazers = 0.6, Browsers = 0.15, Generalists = 0.15),
+  Browser_dominated = c(Grazers = 0.15, Browsers = 0.6, Generalists = 0.15),
+  Generalist_dominated = c(Grazers = 0.15, Browsers = 0.15, Generalists = 0.6)
+)
+
+
+# Run simulations for each herbivore scenario
+results <- lapply(names(herbivore_scenarios), function(scenario) {
+  initial_conditions <- cbind(i_initials, scenario)
+  final_values <- apply(i_initials, 1, run_model,
+                        G0 = herbivore_scenarios[[scenario]]["Grazers"],
+                        B0 = herbivore_scenarios[[scenario]]["Browsers"],
+                        R0 = herbivore_scenarios[[scenario]]["Generalists"])
+
+  final_values_df <- as.data.frame(t(final_values))
+  colnames(final_values_df) <- c("iT", "iC", "Fishing_Pressure",
+                                 "Final_Coral", "Final_Turf", "Final_Macroalgae")
+  final_values_df$Id <- scenario
+  return(final_values_df)
+})
+
+
+
+# Combine results into one data frame
+i_all <- do.call(rbind, results)
+
+# Reorder levels of herbivores for plotting
+herbivore_labels <- c("Herbivores\neven", "Generalist\ndominated", "Browser\ndominated", "Grazer\ndominated")
+names(herbivore_labels) <- c("Herbivores_even","Generalist_dominated", "Browser_dominated", "Grazer_dominated")
+
+# Getting names for Fishing Pressure for plotting
+fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
+names(fishing_labels) <- f_values
+
+# Set Fishing_Pressure and Herbivore_Scenario ID levels
+i_all <- i_all %>% 
+  mutate(Id = factor(Id, levels = names(herbivore_labels), labels = herbivore_labels)) %>% 
+  mutate(Fishing_ID = factor(Fishing_Pressure, levels = f_values, labels = fishing_labels))
+
+
+# levels(i_all_test$Id)
+
+```
+
+
+# Write simulation results to .csv file
+```{r}
+
+# export simulation results to .csv file
+write_csv(i_all, file = "../../output/analyses/supplement/sensitivity_analysis_3_v1.csv")
+
+```
+
+
+## Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+i_all <- read_csv(file = "../../output/analyses/supplement/sensitivity_analysis_3_v1.csv")
+
+```
+
+
+
+
+
+## Sensitivity Analysis 3 - Plotting Results
+
+```{r}
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Reorder factor levels
+i_all$Id <- factor(i_all$Id, levels = c("Herbivores\neven", "Browser\ndominated", "Grazer\ndominated", "Generalist\ndominated"))
+
+# Verify the new order
+levels(i_all$Id)
+
+
+# Create the plot
+pdf("../../output/figures/fig_S15_v1.pdf", width = 9, height = 12)
+
+ggplot(data = i_all, aes(iT, iC)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("iT - Import of Turf Propagules",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0, 0.3, 0.6, 0.9),
+                     labels = c(0, 0.3, 0.6, 0.9)) +
+                     # breaks = c(0,0.2,0.4,0.6,0.8),
+                     # labels = c(0,0.2,0.4,0.6,0.8)) +          
+  scale_y_continuous("iC - Import of Coral Propagules",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0, 0.3, 0.6, 0.9),
+                     labels = c(0, 0.3, 0.6, 0.9)) +      
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,.95)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.95)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(ylim = c(0,0.9), xlim = c(0,0.9),      # set axes limits here to avoid warnings about rows being removed.
+                    bottom = 'both', left = 'both') +      # this caps the axes lines at the outer tick marks.
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+
+
+dev.off()
+
+```
+
+
+
+
+
+
+
+# Sensitivity Analysis 3.2
+## import of turf propagules (iT values) examined for varying initial coral cover conditions
+
+```{r}
+
+
+# Define the initial conditions for which to evaluate
+iT_values <- seq(0, 0.9, by=0.01)
+iC_values <- seq(0, 0.9, by=0.01)
+f_values<-seq(0.1, 0.7, by=0.1)
+
+i_initials <- expand.grid(iT_values, iC_values, f_values)
+colnames(i_initials) <- c("iT", "iC", "Fishing_Pressure")
+
+# # Filter rows where the total initial algae is less than or equal to 0.7
+# final_algae <- subset(algae_initials, rowSums(algae_initials[, c("Turf", "Macroalgae")]) <= 0.7)
+
+# Define a function to run the model for a given set of initial conditions and herbivore abundances
+run_model <- function(initial_conditions, C0, T0) {
+  # C0 <- 0.15
+  M0 <- 0.0
+  # T0 <- 0.7
+  # T0 <- initial_conditions["Turf"]
+  # M0 <- initial_conditions["Macroalgae"]
+  S0 <- 1 - C0 - T0 - M0
+  
+  G0 = 0.3
+  R0 = 0.3
+  B0 = 0.3
+  
+  initial_state <- c(Grazers = G0, Generalists = R0, Browsers = B0, Coral = C0, Turf = T0, Macroalgae = M0)
+  
+  # set the fishing pressure
+  hh_pars[16] <- initial_conditions["Fishing_Pressure"] # set the fishing pressure
+  
+  #set the iT values
+  hh_pars[5] <- initial_conditions["iT"]
+  
+  #set the iC values
+  hh_pars[4] <- initial_conditions["iC"]
+  
+  zz_output <- lsoda(initial_state, P2_tseq, P2_Model, hh_pars)
+  zz_output_new <- as.data.frame(zz_output)
+  
+  final_values <- c(
+    # Initial_Turf = T0,
+    # Initial_Macroalgae = M0,
+    iT = initial_conditions["iT"],
+    iC = initial_conditions["iC"],
+    Fishing_Pressure = initial_conditions["Fishing_Pressure"],
+    Final_Coral = tail(zz_output_new$Coral, 1),
+    Final_Turf = tail(zz_output_new$Turf, 1),
+    Final_Macroalgae = tail(zz_output_new$Macroalgae, 1)
+  )
+  
+  return(final_values)
+}
+
+
+# Define initial coral cover conditions for different scenarios
+coral_scenarios <- list(
+  coral_0.15 = c(Coral = 0.15, Turf = 0.7),
+  coral_0.35 = c(Coral = 0.35, Turf = 0.4),
+  coral_0.55 = c(Coral = 0.55, Turf = 0.3),
+  coral_0.75 = c(Coral = 0.75, Turf = 0.1)
+)
+
+
+# Run simulations for each herbivore scenario
+results <- lapply(names(coral_scenarios), function(scenario) {
+  initial_conditions <- cbind(i_initials, scenario)
+  final_values <- apply(i_initials, 1, run_model,
+                        C0 = coral_scenarios[[scenario]]["Coral"],
+                        T0 = coral_scenarios[[scenario]]["Turf"]
+                        )
+
+  final_values_df <- as.data.frame(t(final_values))
+  colnames(final_values_df) <- c("iT", "iC", "Fishing_Pressure",
+                                 "Final_Coral", "Final_Turf", "Final_Macroalgae")
+  final_values_df$Id <- scenario
+  return(final_values_df)
+})
+
+
+
+# Combine results into one data frame
+i_all <- do.call(rbind, results)
+
+
+# Reorder levels of initial coral covers for plotting
+coral_labels <- c("Initial\nCoral\n= 0.15", "Initial\nCoral\n= 0.35", "Initial\nCoral\n= 0.55", "Initial\nCoral\n= 0.75")
+names(coral_labels) <- c("coral_0.15","coral_0.35", "coral_0.55", "coral_0.75")
+
+# Getting names for Fishing Pressure for plotting
+fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
+names(fishing_labels) <- f_values
+
+# Set Fishing_Pressure and Herbivore_Scenario ID levels
+i_all <- i_all %>% 
+  mutate(Id = factor(Id, levels = names(coral_labels), labels = coral_labels)) %>% 
+  mutate(Fishing_ID = factor(Fishing_Pressure, levels = f_values, labels = fishing_labels))
+
+
+# levels(i_all_test$Id)
+
+
+```
+
+
+# Write simulation results to .csv file
+```{r}
+
+# export simulation results to .csv file
+write_csv(i_all, file = "../../output/analyses/supplement/sensitivity_analysis_3_v2.csv")
+
+```
+
+
+## Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+i_all <- read_csv(file = "../../output/analyses/supplement/sensitivity_analysis_3_v2.csv")
+
+```
+
+
+
+
+## Sensitivity Analysis 3.2 - Plotting Results
+
+```{r}
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# # Reorder factor levels
+# i_all$Id <- factor(i_all$Id, levels = c("Herbivores\neven", "Browser\ndominated", "Grazer\ndominated", "Generalist\ndominated"))
+
+# Verify the new order
+levels(i_all$Id)
+
+
+# Create the plot
+pdf("../../output/figures/fig_S16_v2.pdf", width = 9, height = 12)
+
+ggplot(data = i_all, aes(iT, iC)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("iT - Import of Turf Propagules",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0, 0.3, 0.6, 0.9),
+                     labels = c(0, 0.3, 0.6, 0.9)) +
+                     # breaks = c(0,0.2,0.4,0.6,0.8),
+                     # labels = c(0,0.2,0.4,0.6,0.8)) +          
+  scale_y_continuous("iC - Import of Coral Propagules",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0, 0.3, 0.6, 0.9),
+                     labels = c(0, 0.3, 0.6, 0.9)) +      
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,.95)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.95)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(ylim = c(0,0.9), xlim = c(0,0.9),      # set axes limits here to avoid warnings about rows being removed.
+                    bottom = 'both', left = 'both') +      # this caps the axes lines at the outer tick marks.
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+
+
+dev.off()
+```
+
+
+
+
+# Sensitivity Analysis 4
+## transition probability of turf to macroalgae (gamma values) versus initial turf cover
+
+```{r}
+
+# Define the initial conditions for which to evaluate
+y_values <- seq(0, 0.9, by=0.1)
+T0_values <- seq(0, 0.85, by=0.1)
+f_values<-seq(0.1, 0.7, by=0.1)
+
+y_initials <- expand.grid(y_values, T0_values, f_values)
+colnames(y_initials) <- c("gamma", "T0", "Fishing_Pressure")
+
+# # Filter rows where the total initial algae is less than or equal to 0.7
+# final_algae <- subset(algae_initials, rowSums(algae_initials[, c("Turf", "Macroalgae")]) <= 0.7)
+
+# Define a function to run the model for a given set of initial conditions and herbivore abundances
+run_model <- function(initial_conditions, G0, B0, R0) {
+  # C0 <- 0.15
+  # T0 <- 0.7
+  M0 <- 0.0
+  T0 <- initial_conditions["T0"]
+  C0 <- 0.85 - T0
+  # M0 <- initial_conditions["Macroalgae"]
+  S0 <- 1 - C0 - T0 - M0
+  
+  initial_state <- c(Grazers = G0, Generalists = R0, Browsers = B0, Coral = C0, Turf = T0, Macroalgae = M0)
+  
+  # set the fishing pressure
+  hh_pars[16] <- initial_conditions["Fishing_Pressure"] # set the fishing pressure
+  
+  #set the gamma values
+  hh_pars[17] <- initial_conditions["gamma"]
+  
+  
+  zz_output <- lsoda(initial_state, P2_tseq, P2_Model, hh_pars)
+  zz_output_new <- as.data.frame(zz_output)
+  
+  final_values <- c(
+    # Initial_Macroalgae = M0,
+    gamma = initial_conditions["gamma"],
+    Initial_Turf = T0,
+    # Initial_Turf = initial_conditions["T0"],
+    Fishing_Pressure = initial_conditions["Fishing_Pressure"],
+    Final_Coral = tail(zz_output_new$Coral, 1),
+    Final_Turf = tail(zz_output_new$Turf, 1),
+    Final_Macroalgae = tail(zz_output_new$Macroalgae, 1)
+  )
+  
+  return(final_values)
+}
+
+# Define initial herbivore abundances for different scenarios
+herbivore_scenarios <- list(
+  Herbivores_even = c(Grazers = 0.3, Browsers = 0.3, Generalists = 0.3),
+  Grazer_dominated = c(Grazers = 0.6, Browsers = 0.15, Generalists = 0.15),
+  Browser_dominated = c(Grazers = 0.15, Browsers = 0.6, Generalists = 0.15),
+  Generalist_dominated = c(Grazers = 0.15, Browsers = 0.15, Generalists = 0.6)
+)
+
+
+# Run simulations for each herbivore scenario
+results <- lapply(names(herbivore_scenarios), function(scenario) {
+  initial_conditions <- cbind(y_initials, scenario)
+  final_values <- apply(y_initials, 1, run_model,
+                        G0 = herbivore_scenarios[[scenario]]["Grazers"],
+                        B0 = herbivore_scenarios[[scenario]]["Browsers"],
+                        R0 = herbivore_scenarios[[scenario]]["Generalists"])
+
+  final_values_df <- as.data.frame(t(final_values))
+  colnames(final_values_df) <- c("gamma", "T0", "Fishing_Pressure",
+                                 "Final_Coral", "Final_Turf", "Final_Macroalgae")
+  final_values_df$Id <- scenario
+  return(final_values_df)
+})
+
+
+
+# Combine results into one data frame
+y_all <- do.call(rbind, results)
+
+# Reorder levels of herbivores for plotting
+herbivore_labels <- c("Herbivores\neven", "Generalist\ndominated", "Browser\ndominated", "Grazer\ndominated")
+names(herbivore_labels) <- c("Herbivores_even","Generalist_dominated", "Browser_dominated", "Grazer_dominated")
+
+# Getting names for Fishing Pressure for plotting
+fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
+names(fishing_labels) <- f_values
+
+# Set Fishing_Pressure and Herbivore_Scenario ID levels
+y_all <- y_all %>% 
+  mutate(Id = factor(Id, levels = names(herbivore_labels), labels = herbivore_labels)) %>% 
+  mutate(Fishing_ID = factor(Fishing_Pressure, levels = f_values, labels = fishing_labels))
+
+
+# levels(y_all_test$Id)
+
+
+```
+
+# Write simulation results to .csv file
+```{r}
+
+# export simulation results to .csv file
+write_csv(y_all, file = "../../output/analyses/supplement/sensitivity_analysis_4.csv")
+
+```
+
+
+## Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+y_all <- read_csv(file = "../../output/analyses/supplement/sensitivity_analysis_4.csv")
+
+```
+
+## Sensitivity Analysis 4 - Plotting Results
+
+```{r}
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Reorder factor levels
+y_all$Id <- factor(y_all$Id, levels = c("Herbivores\neven", "Browser\ndominated", "Grazer\ndominated", "Generalist\ndominated"))
+
+# Verify the new order
+levels(y_all$Id)
+
+
+# Create the plot
+pdf("../../output/figures/fig_S17.pdf", width = 9, height = 12)
+
+ggplot(data = y_all, aes(gamma, T0)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("gamma - transition from turf to macroalgae",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0, 0.3, 0.6, 0.9),
+                     labels = c(0,0.3,0.6,0.9)) +
+                     # breaks = c(0,0.2,0.4,0.6,0.8),
+                     # labels = c(0,0.2,0.4,0.6,0.8)) +          
+  scale_y_continuous("Initial Turf Cover",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0, 0.3, 0.6, 0.9),
+                     labels = c(0,0.3,0.6,0.9)) +      
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(ylim = c(0,0.9), xlim = c(0,0.9),      # set axes limits here to avoid warnings about rows being removed.
+                    bottom = 'both', left = 'both') +      # this caps the axes lines at the outer tick marks.
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+
+
+dev.off()
+
+```
+
+
+
+
+
+
+# Sensitivity Analysis 5
+## expansion of turf and macroalgae (betaT and betaM)
+
+```{r}
+
+# Define the initial conditions for which to evaluate
+betaT_values <- seq(0.1, 0.9, by=0.01)
+betaM_values <- seq(0.1, 0.9, by=0.01)
+f_values<-seq(0.1, 0.7, by=0.1)
+
+
+beta_initials <- expand.grid(betaT_values, betaM_values, f_values)
+colnames(beta_initials) <- c("betaT", "betaM", "Fishing_Pressure")
+
+# # Filter rows where the total initial algae is less than or equal to 0.7
+# final_algae <- subset(algae_initials, rowSums(algae_initials[, c("Turf", "Macroalgae")]) <= 0.7)
+
+# Define a function to run the model for a given set of initial conditions and herbivore abundances
+run_model <- function(initial_conditions, G0, B0, R0) {
+  C0 <- 0.15
+  M0 <- 0.0
+  T0 <- 0.7
+  # T0 <- initial_conditions["Turf"]
+  # M0 <- initial_conditions["Macroalgae"]
+  S0 <- 1 - C0 - T0 - M0
+  
+  initial_state <- c(Grazers = G0, Generalists = R0, Browsers = B0, Coral = C0, Turf = T0, Macroalgae = M0)
+  
+  # set the fishing pressure
+  hh_pars[16] <- initial_conditions["Fishing_Pressure"] # set the fishing pressure
+  
+  #set the betaT values
+  hh_pars[2] <- initial_conditions["betaT"]
+  
+  #set the betaM values
+  hh_pars[3] <- initial_conditions["betaM"]
+  
+  zz_output <- lsoda(initial_state, P2_tseq, P2_Model, hh_pars)
+  zz_output_new <- as.data.frame(zz_output)
+  
+  final_values <- c(
+    # Initial_Turf = T0,
+    # Initial_Macroalgae = M0,
+    betaT = initial_conditions["betaT"],
+    betaM = initial_conditions["betaM"],
+    Fishing_Pressure = initial_conditions["Fishing_Pressure"],
+    Final_Coral = tail(zz_output_new$Coral, 1),
+    Final_Turf = tail(zz_output_new$Turf, 1),
+    Final_Macroalgae = tail(zz_output_new$Macroalgae, 1)
+  )
+  
+  return(final_values)
+}
+
+# Define initial herbivore abundances for different scenarios
+herbivore_scenarios <- list(
+  Herbivores_even = c(Grazers = 0.3, Browsers = 0.3, Generalists = 0.3),
+  Grazer_dominated = c(Grazers = 0.6, Browsers = 0.15, Generalists = 0.15),
+  Browser_dominated = c(Grazers = 0.15, Browsers = 0.6, Generalists = 0.15),
+  Generalist_dominated = c(Grazers = 0.15, Browsers = 0.15, Generalists = 0.6)
+)
+
+
+# Run simulations for each herbivore scenario
+results <- lapply(names(herbivore_scenarios), function(scenario) {
+  initial_conditions <- cbind(beta_initials, scenario)
+  final_values <- apply(beta_initials, 1, run_model,
+                        G0 = herbivore_scenarios[[scenario]]["Grazers"],
+                        B0 = herbivore_scenarios[[scenario]]["Browsers"],
+                        R0 = herbivore_scenarios[[scenario]]["Generalists"])
+
+  final_values_df <- as.data.frame(t(final_values))
+  colnames(final_values_df) <- c("betaT", "betaM", "Fishing_Pressure",
+                                 "Final_Coral", "Final_Turf", "Final_Macroalgae")
+  final_values_df$Id <- scenario
+  return(final_values_df)
+})
+
+
+
+# Combine results into one data frame
+beta_all <- do.call(rbind, results)
+
+# Reorder levels of herbivores for plotting
+herbivore_labels <- c("Herbivores\neven", "Generalist\ndominated", "Browser\ndominated", "Grazer\ndominated")
+names(herbivore_labels) <- c("Herbivores_even","Generalist_dominated", "Browser_dominated", "Grazer_dominated")
+
+# Getting names for Fishing Pressure for plotting
+fishing_labels <- paste0("Fishing\nPressure\n= ", f_values)
+names(fishing_labels) <- f_values
+
+# Set Fishing_Pressure and Herbivore_Scenario ID levels
+beta_all <- beta_all %>% 
+  mutate(Id = factor(Id, levels = names(herbivore_labels), labels = herbivore_labels)) %>% 
+  mutate(Fishing_ID = factor(Fishing_Pressure, levels = f_values, labels = fishing_labels))
+
+
+# levels(beta_all_test$Id)
+
+
+```
+
+
+
+# Write simulation results to .csv file
+```{r}
+
+# export simulation results to .csv file
+write_csv(beta_all, file = "../../output/analyses/supplement/sensitivity_analysis_5.csv")
+
+```
+
+
+## Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+beta_all <- read_csv(file = "../../output/analyses/supplement/sensitivity_analysis_5.csv")
+
+```
+
+
+
+## Sensitivity Analysis 5 - Plotting Results
+
+```{r}
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Reorder factor levels
+beta_all$Id <- factor(beta_all$Id, levels = c("Herbivores\neven", "Browser\ndominated", "Grazer\ndominated", "Generalist\ndominated"))
+
+# Verify the new order
+levels(beta_all$Id)
+
+
+# Create the plot
+pdf("../../output/figures/fig_S18.pdf", width = 9, height = 12)
+
+ggplot(data = beta_all, aes(betaT, betaM)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("betaT - Expansion of Turf",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0, 0.3, 0.6, 0.9),
+                     labels = c(0,0.3,0.6,0.9)) +
+                     # breaks = c(0,0.2,0.4,0.6,0.8),
+                     # labels = c(0,0.2,0.4,0.6,0.8)) +          
+  scale_y_continuous("betaM - Expansion of Macroalgae",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0, 0.3, 0.6, 0.9),
+                     labels = c(0,0.3,0.6,0.9)) +      
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(ylim = c(0,0.9), xlim = c(0,0.9),      # set axes limits here to avoid warnings about rows being removed.
+                    bottom = 'both', left = 'both') +      # this caps the axes lines at the outer tick marks.
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+
+
+dev.off()
+
+```
+
+
+
+

@@ -661,7 +661,8 @@ ggplot(data=exp_hysteresis_all, aes(x=Fishing, Final_Coral, group=Id, color=Id))
   ylab("Coral Cover") +
   xlab("Fishing Pressure") +
   theme(legend.title=element_blank(),
-        legend.position = c(0.75,0.965),
+        legend.position = "inside",
+        legend.position.inside = c(0.75,0.965),
         legend.text=element_text(size=9),
         legend.background = element_rect(fill = "transparent")) +
   facet_wrap(~Type,nrow = 4) +
@@ -670,4 +671,80 @@ ggplot(data=exp_hysteresis_all, aes(x=Fishing, Final_Coral, group=Id, color=Id))
 # dev.off()
 
 ```
+
+
+## Adding arrows to the lines for figure 5b.
+
+```{r}
+
+
+# Define arrow positions manually for each panel
+arrow_positions <- data.frame(
+  Type = c("E) Herbivore groups even","F) Generalist-dominated","G) Browser-dominated","H) Grazer-dominated"), # Adjust based on your actual facet labels
+  Fishing_Arrow = c(0.5, 0.6, 0.49, 0.2) # Specify where you want the arrow in each panel
+)
+
+# Function to find the closest data point to the specified Fishing value
+find_nearest_point <- function(df, fishing_value) {
+  df[which.min(abs(df$Fishing - fishing_value)), ]
+}
+
+# # Get the closest data points for arrows
+forward_arrows <- arrow_positions %>%
+  inner_join(exp_hysteresis_all %>% filter(Id == "Forward"), by = "Type") %>%
+  group_by(Type) %>%
+  summarise(nearest_point = list(find_nearest_point(cur_data(), Fishing_Arrow)), .groups = "drop") %>%
+  unnest_wider(nearest_point)
+
+reverse_arrows <- arrow_positions %>%
+  inner_join(exp_hysteresis_all %>% filter(Id == "Reverse"), by = "Type") %>%
+  group_by(Type) %>%
+  summarise(nearest_point = list(find_nearest_point(cur_data(), Fishing_Arrow)), .groups = "drop") %>%
+  unnest_wider(nearest_point)
+
+
+
+
+
+# Save figure as a PDF file
+pdf("../../output/figures/Fig_5B_arrows.pdf", width=2.5, height=8.5)
+
+## plot figures
+ggplot(data=exp_hysteresis_all, aes(x=Fishing, y=Final_Coral, group=Id, color=Id)) +
+  geom_line(aes(color = Id, linewidth = Id)) +
+  
+  # Forward arrow (rightward)
+  geom_segment(data=forward_arrows, aes(x=Fishing, y=Final_Coral, 
+                                        xend=Fishing+0.003, yend=Final_Coral), 
+               arrow=arrow(type="closed", length=unit(0.12, "inches")),
+               color="red", linewidth=1) +
+
+  # Reverse arrow (leftward)
+  geom_segment(data=reverse_arrows, aes(x=Fishing+0.002, y=Final_Coral, 
+                                        xend=Fishing-0.003, yend=Final_Coral), 
+               arrow=arrow(type="closed", length=unit(0.15, "inches")),
+               color="black", linewidth=1) +
+  
+  scale_color_manual(labels=c("Forward","Reverse"),
+                     values=c("red","black")) +  
+  theme_classic(base_size=14, base_family = "Times") +  
+  theme(axis.title=element_text(size=16, face="bold")) +
+  scale_linewidth_manual(values = c(2,1)) +
+  xlim(0,1) +  
+  ylim(0,1) +  
+  ylab("Coral Cover") +
+  xlab("Fishing Pressure") +
+  theme(legend.title=element_blank(),
+        legend.position = "inside",
+        legend.position.inside = c(0.75,0.965),
+        legend.text=element_text(size=9),
+        legend.background = element_rect(fill = "transparent")) +
+  facet_wrap(~Type, nrow = 4) +
+  theme(strip.text.x = element_text(size = 11))
+
+
+
+```
+
+
 
