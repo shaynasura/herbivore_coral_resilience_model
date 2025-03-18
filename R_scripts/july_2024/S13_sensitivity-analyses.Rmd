@@ -204,7 +204,7 @@ levels(alpha_all$Id)
 
 
 # Create the plot
-pdf("../../output/figures/fig_S13_v3.pdf", width = 9, height = 12)
+pdf("../../output/figures/fig_S13_v3_circles.pdf", width = 9, height = 12)
 
 ggplot(data = alpha_all, aes(alphaT, alphaM)) +
   geom_tile(aes(fill = Final_Coral)) +
@@ -227,7 +227,16 @@ ggplot(data = alpha_all, aes(alphaT, alphaM)) +
   theme_classic(base_size = 10, base_family = "Times") +
   theme(axis.title = element_text(size = 11, face = "bold")) +
   theme(strip.text.x = element_text(size = 11)) +
-  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  
+  # Add a circle at alphaT = 0.25, alphaM = 0.5
+  annotate("point", x = 0.25, y = 0.5, 
+         shape = 1, size = 3, color = "black", stroke = 1.2)
+
+
+  # # Add the circle at alphaT = 0.25, alphaM = 0.5
+  # geom_point(aes(x = 0.25, y = 0.5), 
+  #            shape = 1, size = 3, color = "black", stroke = 1.2)  # shape = 1 for a hollow circle
 
 
 dev.off()
@@ -372,7 +381,7 @@ levels(g_all$Id)
 
 
 # Create the plot
-pdf("../../output/figures/fig_S14_v1.pdf", width = 9, height = 12)
+pdf("../../output/figures/fig_S14_v1_circles.pdf", width = 9, height = 12)
 
 ggplot(data = g_all, aes(gT, gM)) +
   geom_tile(aes(fill = Final_Coral)) +
@@ -395,7 +404,11 @@ ggplot(data = g_all, aes(gT, gM)) +
   theme_classic(base_size = 10, base_family = "Times") +
   theme(axis.title = element_text(size = 11, face = "bold")) +
   theme(strip.text.x = element_text(size = 11)) +
-  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  
+  # Add a circle at gT = 2, gM = 1
+  annotate("point", x = 2, y = 1, 
+         shape = 1, size = 3, color = "black", stroke = 1.2)
 
 
 dev.off()
@@ -543,7 +556,7 @@ levels(i_all$Id)
 
 
 # Create the plot
-pdf("../../output/figures/fig_S15_v1.pdf", width = 9, height = 12)
+pdf("../../output/figures/fig_S15_v1_circles.pdf", width = 9, height = 12)
 
 ggplot(data = i_all, aes(iT, iC)) +
   geom_tile(aes(fill = Final_Coral)) +
@@ -566,7 +579,11 @@ ggplot(data = i_all, aes(iT, iC)) +
   theme_classic(base_size = 10, base_family = "Times") +
   theme(axis.title = element_text(size = 11, face = "bold")) +
   theme(strip.text.x = element_text(size = 11)) +
-  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  
+  # Add a circle at iT = 0.05, iC = 0.05
+  annotate("point", x = 0.05, y = 0.05, 
+         shape = 1, size = 3, color = "black", stroke = 1.2)
 
 
 dev.off()
@@ -723,7 +740,7 @@ levels(i_all$Id)
 
 
 # Create the plot
-pdf("../../output/figures/fig_S16_v2.pdf", width = 9, height = 12)
+pdf("../../output/figures/fig_S16_v2_circles.pdf", width = 9, height = 12)
 
 ggplot(data = i_all, aes(iT, iC)) +
   geom_tile(aes(fill = Final_Coral)) +
@@ -746,7 +763,11 @@ ggplot(data = i_all, aes(iT, iC)) +
   theme_classic(base_size = 10, base_family = "Times") +
   theme(axis.title = element_text(size = 11, face = "bold")) +
   theme(strip.text.x = element_text(size = 11)) +
-  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  
+  # Add a circle at iT = 0.05, iC = 0.05
+  annotate("point", x = 0.05, y = 0.05, 
+         shape = 1, size = 3, color = "black", stroke = 1.2)
 
 
 dev.off()
@@ -887,7 +908,7 @@ levels(y_all$Id)
 
 
 # Create the plot
-pdf("../../output/figures/fig_S17.pdf", width = 9, height = 12)
+pdf("../../output/figures/fig_S17_circles.pdf", width = 9, height = 12)
 
 ggplot(data = y_all, aes(gamma, T0)) +
   geom_tile(aes(fill = Final_Coral)) +
@@ -910,7 +931,10 @@ ggplot(data = y_all, aes(gamma, T0)) +
   theme_classic(base_size = 10, base_family = "Times") +
   theme(axis.title = element_text(size = 11, face = "bold")) +
   theme(strip.text.x = element_text(size = 11)) +
-  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  # Add a circle at gamma = 0.1, T0 = 0.1
+  annotate("point", x = 0.1, y = 0.1, 
+         shape = 1, size = 3, color = "black", stroke = 1.2)
 
 
 dev.off()
@@ -1060,7 +1084,7 @@ levels(beta_all$Id)
 
 
 # Create the plot
-pdf("../../output/figures/fig_S18.pdf", width = 9, height = 12)
+pdf("../../output/figures/fig_S18_circles.pdf", width = 9, height = 12)
 
 ggplot(data = beta_all, aes(betaT, betaM)) +
   geom_tile(aes(fill = Final_Coral)) +
@@ -1083,7 +1107,10 @@ ggplot(data = beta_all, aes(betaT, betaM)) +
   theme_classic(base_size = 10, base_family = "Times") +
   theme(axis.title = element_text(size = 11, face = "bold")) +
   theme(strip.text.x = element_text(size = 11)) +
-  theme(strip.text.y = element_text(size = 11, angle = 0)) 
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  # Add a circle at betaT = 0.8, betaM = 0.5
+  annotate("point", x = 0.8, y = 0.5, 
+         shape = 1, size = 3, color = "black", stroke = 1.2)
 
 
 dev.off()
