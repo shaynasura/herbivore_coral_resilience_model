@@ -414,6 +414,60 @@ ggplot(data = g_all, aes(gT, gM)) +
 dev.off()
 ```
 
+## Sensitivity Analysis 2 - Plotting SMALLER SUBSET of Results
+
+```{r}
+
+
+g_all_small <- g_all %>% 
+  filter(gT<8.1) %>% 
+  filter(gM<8.1)
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Reorder factor levels
+g_all_small$Id <- factor(g_all_small$Id, levels = c("Herbivores\neven", "Browser\ndominated", "Grazer\ndominated", "Generalist\ndominated"))
+
+# Verify the new order
+levels(g_all_small$Id)
+
+
+# Create the plot
+pdf("../../output/figures/fig_S14_v1_circles_small.pdf", width = 9, height = 12)
+
+ggplot(data = g_all_small, aes(gT, gM)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  scale_x_continuous("gT - Grazing Mortality of Turf",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0,2,4,6,8),
+                     labels = c(0,2,4,6,8)) +
+                     # breaks = c(0,0.2,0.4,0.6,0.8),
+                     # labels = c(0,0.2,0.4,0.6,0.8)) +          
+  scale_y_continuous("gM - Grazing Mortality of Macroalgae",
+                     # expand = c(0,0),                     # remove padding between axis line and data
+                     breaks = c(0,2,4,6,8),
+                     labels = c(0,2,4,6,8)) +      
+  labs(fill = "Final\nCoral\nCover") +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  facet_rep_grid(Fishing_ID ~ Id) +
+  coord_capped_cart(ylim = c(0,8), xlim = c(0,8),      # set axes limits here to avoid warnings about rows being removed.
+                    bottom = 'both', left = 'both') +      # this caps the axes lines at the outer tick marks.
+  theme_classic(base_size = 10, base_family = "Times") +
+  theme(axis.title = element_text(size = 11, face = "bold")) +
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(strip.text.y = element_text(size = 11, angle = 0)) +
+  
+  # Add a circle at gT = 2, gM = 1
+  annotate("point", x = 2, y = 1, 
+         shape = 1, size = 3, color = "black", stroke = 1.2)
+
+
+dev.off()
+
+```
 
 
 
