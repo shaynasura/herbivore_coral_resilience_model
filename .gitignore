@@ -1,8 +1,12 @@
 # specific folders
 output/figures/test_figures
 R_scripts/previous
+R_scripts/july_2024/not_for_sharing
+
 # .DS_Store files
 .DS_Store
+**/.DS_Store
+
 # History files
 .Rhistory
 .Rapp.history
