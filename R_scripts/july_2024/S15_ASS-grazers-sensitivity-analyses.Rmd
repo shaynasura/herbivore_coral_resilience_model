@@ -1,0 +1,1085 @@
+---
+title: "S15_ASS-grazers-sensitivity-analyses"
+author: "Shayna A. Sura"
+date: "2025-06-18"
+output: pdf_document
+---
+
+
+
+```{r setup, include=FALSE}
+
+library(deSolve)
+library(reshape2)
+library(viridis)
+library(gridExtra)
+library(tidyverse) # includes and loads the packages listed below
+# library(readr)
+# library(tidyr)
+# library(dplyr)
+# library(ggplot2)
+# library(lubridate)
+
+library(here) # helps with paths for files
+library(purrr) # vectorized coding approaches for faster analyses
+library(scales)
+library(lemon) #for facet_rep_grid function for plotting
+library(progress)  # for progress bar
+
+```
+
+
+
+
+# Our Model Set up
+```{r source model code and parameters}
+
+source("0.2_full_model.R")
+
+```
+
+
+#### parameter values used for model analyses for reference
+
+```{r}
+
+# #Generate a vector of parameter values - for our full / expanded model
+# hh_pars<-c(bc<-0.3, bt<-0.8, bm<-0.5,     #expansion of current benthic cover
+#            ic<-0.05, it<-0.05, im<-0,     #import of propagules
+#            dc<-0.1,                       #coral mortality
+#            r<-1,                          #herbivore growth rate
+#            gt<-2, gm<-1,                  #algae mortality
+#            etaT<-0, etaM<-1,              #algae handling time
+#            alphaT<-0.25, alphaM<-0.5,     #competitive effect on coral
+#            sigma<-0.6,                    #relationship between coral & herbivores
+#            f<-0.5,                        #fishing pressure
+#            gamma<-0.1)                    #transition from turf to macroalgae
+
+
+```
+
+
+
+
+
+
+
+
+
+# GRAZER-DOMINATED SCENARIO
+
+# GRAZER-Dominated ASS Sensitivity Analyses 1
+## Competitive effects of Turf and Macroalgae on Coral (alphaT and alphaM values)
+
+
+```{r}
+
+# Step 1 - Define Time Sequence and Input Ranges
+
+# Time sequence for the model
+P2_tseq <- seq(0, 1000, by = 0.1)
+
+# Coral cover and fishing pressure combinations
+f_values <- seq(0, 1, by = 0.02)
+coral_initials <- seq(0, 0.85, 0.02)
+
+# Grid of initial coral and fishing pressure
+# high_browsers_1 <- expand.grid(Initial_Coral = coral_initials, Fishing_Pressure = f_values)
+
+high_grazers_1 <- expand.grid(Initial_Coral = coral_initials, Fishing_Pressure = f_values)
+
+
+
+# Step 2 - Prepare Parameter Combinations & Batching
+
+# Create all (alphaT, alphaM) combinations where alphaM >= alphaT
+alphaT_values <- seq(0.1, 0.7, by=0.1)
+alphaM_values <- seq(0.1, 0.7, by=0.1)
+
+alpha_initials <- expand.grid(alphaT = alphaT_values, alphaM = alphaM_values)
+
+# Filter out rows where the alphaT values are greater than alphaM values - keep rows where alphaM >= alphaT
+alpha_initials <- alpha_initials %>% 
+  filter(alphaM >= alphaT)
+
+param_grid <- alpha_initials
+
+
+# Define batch size and split param_grid
+batch_size <- 2  # Adjust based on your machine
+n_batches <- ceiling(nrow(param_grid) / batch_size)
+
+# Create list of parameter batches
+param_batches <- split(param_grid, rep(1:n_batches, each = batch_size, length.out = nrow(param_grid)))
+
+
+
+# Step 3 - Define the Model Run Function
+run_model <- function(initial_coral, fishing_pressure, alphaT, alphaM) {
+  C0 <- initial_coral
+  B0 <- 0.15
+  R0 <- 0.15
+  G0 <- 0.6
+  # B0 <- 0.6
+  # R0 <- 0.15
+  # G0 <- 0.15
+  S0 <- 0.15
+  M0 <- (1 - C0 - S0) / 2
+  T0 <- (1 - C0 - S0) / 2
+
+  # Update the parameters — modify these indices if needed
+  hh_pars_mod <- hh_pars
+  hh_pars_mod[13] <- alphaT  # set the alphaT values
+  hh_pars_mod[14] <- alphaM  # set the alphaM values
+  hh_pars_mod[16] <- fishing_pressure  # Fishing pressure
+
+  # Run model
+  zz_output <- lsoda(c(Grazers = G0, Generalists = R0, Browsers = B0,
+                       Coral = C0, Turf = T0, Macroalgae = M0),
+                     P2_tseq, P2_Model, hh_pars_mod)
+
+  final_coral <- tail(as.data.frame(zz_output)$Coral, 1)
+  return(final_coral)
+}
+
+
+
+# Step 4 - Run the batches
+# Create progress bar
+pb <- progress_bar$new(
+  format = "Processing batch :current/:total [:bar] :percent in :elapsed ETA: :eta",
+  total = n_batches,
+  clear = FALSE,
+  width = 60
+)
+
+
+
+results_all <- list()
+
+for (i in seq_along(param_batches)) {
+  pb$tick()  # Update progress bar
+  
+  batch <- param_batches[[i]]
+  
+  # Inner progress bar for (alphaT, alphaM) combos in this batch
+  inner_pb <- progress_bar$new(
+    format = "  alphaT/alphaM combo :current/:total [:bar] :percent in :elapsed ETA: :eta",
+    total = nrow(batch),
+    clear = FALSE,
+    width = 60
+  )
+  
+  
+  # use map2_dfr to directly bind all the results into a single data frame
+  batch_results <- map2_dfr(batch$alphaT, batch$alphaM, function(alphaT_val, alphaM_val) {
+    inner_pb$tick()
+    high_grazers_1 %>%
+      mutate(Final_Coral = pmap_dbl(list(Initial_Coral, Fishing_Pressure),
+                                    ~run_model(..1, ..2, alphaT_val, alphaM_val)),
+             alphaT = alphaT_val,
+             alphaM = alphaM_val)
+  })
+  
+  results_all[[i]] <- batch_results
+  
+  # Save to output/analyses/supplement2/
+  write.csv(batch_results,
+            file = file.path("../output", "analyses", "supplement2", paste0("grazers_alphaT_alphaM_results_batch_", i, ".csv")),
+            row.names = FALSE)
+}
+
+
+
+
+# Step 5 - Combine Final Results
+grazers_alphaT_alphaM_all <- bind_rows(results_all)
+
+
+
+```
+
+# Write simulation results to .csv file
+
+```{r}
+# export complete simulation results to .csv file
+
+write_csv(grazers_alphaT_alphaM_all, "../output/analyses/supplement2/grazers_alphaT_alphaM_results_all_batches.csv")
+
+```
+
+
+# Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+grazers_alphaT_alphaM_all <- read_csv(file = "../../output/analyses/supplement2/grazers_alphaT_alphaM_results_all_batches")
+
+```
+
+
+# Plotting Results
+
+```{r}
+
+final_results <- grazers_alphaT_alphaM_all %>%
+  mutate(
+    alphaT_label = paste0("alphaT = ", alphaT),
+    alphaM_label = paste0("alphaM = ", alphaM)
+  )
+
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Create PDF
+pdf("../output/figures/fig_S21_grazersdom_alphaTalphaM_v1.pdf", width = 12, height = 10)
+
+ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  theme_classic(base_size=14,base_family = "Times") + 
+  theme(axis.title=element_text(size=16,face="bold")) +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_x_continuous("Fishing Pressure",
+                     expand = c(0, 0),
+                     breaks = c(0,0.25,0.5,0.75,1),
+                     labels = c(0,0.25,0.5,0.75,1)) +
+  scale_y_continuous("Initial Coral Cover",
+                     expand = c(0, 0),
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  guides(fill = guide_colorbar(title.position = "top",
+                               title.hjust = 0.5,
+                               label.hjust = 0.5,
+                               barheight = unit(6, "lines"),
+                               barwidth = unit(1, "lines"),
+                               draw.ulim = FALSE,
+                               draw.llim = FALSE,
+                               frame.colour = "black",
+                               ticks.colour = "black",
+                               label.position = "right",
+                               label.theme = element_text(size = 8),
+                               title = "Final\nCoral\nCover",
+                               title.theme = element_text(size = 11))) +
+  facet_rep_grid(alphaT_label ~ alphaM_label) +
+  theme(strip.text.x = element_text(size = 11))
+
+dev.off()
+
+```
+
+
+
+
+
+
+
+# GRAZER-DOMINATED SCENARIO
+
+# Alternative Stable States (ASS) Sensitivity Analyses 2
+## Grazing rate on turf and macroalgae (gT and gM values)
+
+```{r}
+
+# Step 1 - Define Time Sequence and Input Ranges
+
+# Time sequence for the model
+P2_tseq <- seq(0, 1000, by = 0.1)
+
+# Coral cover and fishing pressure combinations
+f_values <- seq(0, 1, by = 0.02)
+coral_initials <- seq(0, 0.85, 0.02)
+
+# Grid of initial coral and fishing pressure
+# high_browsers_1 <- expand.grid(Initial_Coral = coral_initials, Fishing_Pressure = f_values)
+high_grazers_1 <- expand.grid(Initial_Coral = coral_initials, Fishing_Pressure = f_values)
+
+
+# Step 2 - Prepare Parameter Combinations & Batching
+
+# Create all (gt, gm) combinations where gt >= gm
+param_grid <- expand.grid(gt = 0:6, gm = 0:6) %>%
+  filter(gt >= gm)
+
+# Define batch size and split param_grid
+batch_size <- 2  # Adjust based on your machine
+n_batches <- ceiling(nrow(param_grid) / batch_size)
+
+# Create list of parameter batches
+param_batches <- split(param_grid, rep(1:n_batches, each = batch_size, length.out = nrow(param_grid)))
+
+
+
+# Step 3 - Define the Model Run Function
+run_model <- function(initial_coral, fishing_pressure, gt, gm) {
+  C0 <- initial_coral
+  B0 <- 0.15
+  R0 <- 0.15
+  G0 <- 0.6
+  # B0 <- 0.6
+  # R0 <- 0.15
+  # G0 <- 0.15
+  S0 <- 0.15
+  M0 <- (1 - C0 - S0) / 2
+  T0 <- (1 - C0 - S0) / 2
+
+  # Update the parameters — modify these indices if needed
+  hh_pars_mod <- hh_pars
+  hh_pars_mod[9] <- gt  # grazing mortality of turf
+  hh_pars_mod[10] <- gm  # grazing mortality of macroalgae
+  hh_pars_mod[16] <- fishing_pressure  # Fishing pressure
+
+  # Run model
+  zz_output <- lsoda(c(Grazers = G0, Generalists = R0, Browsers = B0,
+                       Coral = C0, Turf = T0, Macroalgae = M0),
+                     P2_tseq, P2_Model, hh_pars_mod)
+
+  final_coral <- tail(as.data.frame(zz_output)$Coral, 1)
+  return(final_coral)
+}
+
+
+
+# Step 4 - Run the batches
+# Create progress bar
+pb <- progress_bar$new(
+  format = "Processing batch :current/:total [:bar] :percent in :elapsed ETA: :eta",
+  total = n_batches,
+  clear = FALSE,
+  width = 60
+)
+
+results_all <- list()
+
+for (i in seq_along(param_batches)) {
+  pb$tick()  # Update progress bar
+  
+  batch <- param_batches[[i]]
+  
+  # Inner progress bar for (gt, gm) combos in this batch
+  inner_pb <- progress_bar$new(
+    format = "  gt/gm combo :current/:total [:bar] :percent in :elapsed ETA: :eta",
+    total = nrow(batch),
+    clear = FALSE,
+    width = 60
+  )
+  
+  
+  # use map2_dfr to directly bind all the results into a single data frame
+  batch_results <- map2_dfr(batch$gt, batch$gm, function(gt_val, gm_val) {
+    inner_pb$tick()
+    high_grazers_1 %>%
+      mutate(Final_Coral = pmap_dbl(list(Initial_Coral, Fishing_Pressure),
+                                    ~run_model(..1, ..2, gt_val, gm_val)),
+             gt = gt_val,
+             gm = gm_val)
+  })
+  
+  results_all[[i]] <- batch_results
+  
+  # Save to output/analyses/supplement2/
+  write.csv(batch_results,
+            file = file.path("../output", "analyses", "supplement2", paste0("grazers_gT_gM_results_batch_", i, ".csv")),
+            row.names = FALSE)
+}
+
+
+# Step 5 - Combine Final Results
+grazers_gT_gM_all <- bind_rows(results_all)
+
+# # Optional: write the full result
+# write_csv(gT_gM_all, "../output/analyses/supplement2/gT_gM_results_all_batches.csv")
+
+
+```
+
+
+# Write simulation results to .csv file
+
+```{r}
+# export complete simulation results to .csv file
+
+write_csv(grazers_gT_gM_all, "../output/analyses/supplement2/grazers_gT_gM_results_all_batches.csv")
+
+```
+
+
+# Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+grazers_gT_gM_all <- read_csv(file = "../output/analyses/supplement2/grazers_gT_gM_results_all_batches")
+
+```
+
+
+# Plotting Results
+
+```{r}
+
+final_results <- grazers_gT_gM_all %>%
+  mutate(
+    gt_label = paste0("gT = ", gt),
+    gm_label = paste0("gM = ", gm)
+  )
+
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Create PDF
+pdf("../output/figures/fig_S22_grazersdom_gTgM_v1.pdf", width = 12, height = 10)
+
+ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  theme_classic(base_size=14,base_family = "Times") + 
+  theme(axis.title=element_text(size=16,face="bold")) +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_x_continuous("Fishing Pressure",
+                     expand = c(0, 0),
+                     breaks = c(0,0.25,0.5,0.75,1),
+                     labels = c(0,0.25,0.5,0.75,1)) +
+  scale_y_continuous("Initial Coral Cover",
+                     expand = c(0, 0),
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  guides(fill = guide_colorbar(title.position = "top",
+                               title.hjust = 0.5,
+                               label.hjust = 0.5,
+                               barheight = unit(6, "lines"),
+                               barwidth = unit(1, "lines"),
+                               draw.ulim = FALSE,
+                               draw.llim = FALSE,
+                               frame.colour = "black",
+                               ticks.colour = "black",
+                               label.position = "right",
+                               label.theme = element_text(size = 8),
+                               title = "Final\nCoral\nCover",
+                               title.theme = element_text(size = 11))) +
+  facet_rep_grid(gt_label ~ gm_label) +
+  theme(strip.text.x = element_text(size = 11))
+
+dev.off()
+
+```
+
+
+
+
+
+
+# GRAZER-DOMINATED SCENARIO
+
+# Grazer-Dominated ASS Sensitivity Analyses 3
+## Import of Turf and Coral Propagules (iT and iC values)
+
+
+```{r}
+
+# Step 1 - Define Time Sequence and Input Ranges
+
+# Time sequence for the model
+P2_tseq <- seq(0, 1000, by = 0.1)
+
+# Coral cover and fishing pressure combinations
+f_values <- seq(0, 1, by = 0.02)
+coral_initials <- seq(0, 0.85, 0.02)
+
+# Grid of initial coral and fishing pressure
+# high_browsers_1 <- expand.grid(Initial_Coral = coral_initials, Fishing_Pressure = f_values)
+high_grazers_1 <- expand.grid(Initial_Coral = coral_initials, Fishing_Pressure = f_values)
+
+
+
+# Step 2 - Prepare Parameter Combinations & Batching
+
+# Create all (iT, iC) combinations
+iT_values <- seq(0, 0.3, by=0.05)
+iC_values <- seq(0, 0.3, by=0.05)
+
+iTiC_initials <- expand.grid(iT = iT_values, iC = iC_values)
+
+# # Filter out rows where the alphaT values are greater than alphaM values - keep rows where alphaM >= alphaT
+# alpha_initials <- alpha_initials %>% 
+#   filter(alphaM >= alphaT)
+
+param_grid <- iTiC_initials
+
+
+# Define batch size and split param_grid
+batch_size <- 2  # Adjust based on your machine
+n_batches <- ceiling(nrow(param_grid) / batch_size)
+
+# Create list of parameter batches
+param_batches <- split(param_grid, rep(1:n_batches, each = batch_size, length.out = nrow(param_grid)))
+
+
+
+# Step 3 - Define the Model Run Function
+run_model <- function(initial_coral, fishing_pressure, iT, iC) {
+  C0 <- initial_coral
+  B0 <- 0.15
+  R0 <- 0.15
+  G0 <- 0.6
+  # B0 <- 0.6
+  # R0 <- 0.15
+  # G0 <- 0.15
+  S0 <- 0.15
+  M0 <- (1 - C0 - S0) / 2
+  T0 <- (1 - C0 - S0) / 2
+
+  # Update the parameters — modify these indices if needed
+  hh_pars_mod <- hh_pars
+  hh_pars_mod[5] <- iT  # set the iT values
+  hh_pars_mod[4] <- iC  # set the iC values
+  hh_pars_mod[16] <- fishing_pressure  # Fishing pressure
+
+  # Run model
+  zz_output <- lsoda(c(Grazers = G0, Generalists = R0, Browsers = B0,
+                       Coral = C0, Turf = T0, Macroalgae = M0),
+                     P2_tseq, P2_Model, hh_pars_mod)
+
+  final_coral <- tail(as.data.frame(zz_output)$Coral, 1)
+  return(final_coral)
+}
+
+
+
+# Step 4 - Run the batches
+# Create progress bar
+pb <- progress_bar$new(
+  format = "Processing batch :current/:total [:bar] :percent in :elapsed ETA: :eta",
+  total = n_batches,
+  clear = FALSE,
+  width = 60
+)
+
+
+
+results_all <- list()
+
+for (i in seq_along(param_batches)) {
+  pb$tick()  # Update progress bar
+  
+  batch <- param_batches[[i]]
+  
+  # Inner progress bar for (iT, iC) combos in this batch
+  inner_pb <- progress_bar$new(
+    format = "  iT/iC combo :current/:total [:bar] :percent in :elapsed ETA: :eta",
+    total = nrow(batch),
+    clear = FALSE,
+    width = 60
+  )
+  
+  
+  # use map2_dfr to directly bind all the results into a single data frame
+  batch_results <- map2_dfr(batch$iT, batch$iC, function(iT_val, iC_val) {
+    inner_pb$tick()
+    high_grazers_1 %>%
+      mutate(Final_Coral = pmap_dbl(list(Initial_Coral, Fishing_Pressure),
+                                    ~run_model(..1, ..2, iT_val, iC_val)),
+             iT = iT_val,
+             iC = iC_val)
+  })
+  
+  results_all[[i]] <- batch_results
+  
+  # Save to output/analyses/supplement2/
+  write.csv(batch_results,
+            file = file.path("../output", "analyses", "supplement2", paste0("grazers_iT_iC_results_batch_", i, ".csv")),
+            row.names = FALSE)
+}
+
+
+
+
+# Step 5 - Combine Final Results
+grazers_iT_iC_all <- bind_rows(results_all)
+
+
+
+```
+
+# Write simulation results to .csv file
+
+```{r}
+# export complete simulation results to .csv file
+
+write_csv(grazers_iT_iC_all, "../output/analyses/supplement2/grazers_iT_iC_results_all_batches.csv")
+
+```
+
+
+# Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+grazers_iT_iC_all <- read_csv(file = "../../output/analyses/supplement2/grazers_iT_iC_results_all_batches")
+
+```
+
+
+# Plotting Results
+
+```{r}
+
+final_results <- grazers_iT_iC_all %>%
+  mutate(
+    iT_label = paste0("iT = ", iT),
+    iC_label = paste0("iC = ", iC)
+  )
+
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Create PDF
+pdf("../output/figures/fig_S24_grazers_iTiC_v1.pdf", width = 12, height = 10)
+
+ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  theme_classic(base_size=14,base_family = "Times") + 
+  theme(axis.title=element_text(size=16,face="bold")) +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,1)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,1)) +
+  scale_x_continuous("Fishing Pressure",
+                     expand = c(0, 0),
+                     breaks = c(0,0.25,0.5,0.75,1),
+                     labels = c(0,0.25,0.5,0.75,1)) +
+  scale_y_continuous("Initial Coral Cover",
+                     expand = c(0, 0),
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  guides(fill = guide_colorbar(title.position = "top",
+                               title.hjust = 0.5,
+                               label.hjust = 0.5,
+                               barheight = unit(6, "lines"),
+                               barwidth = unit(1, "lines"),
+                               draw.ulim = FALSE,
+                               draw.llim = FALSE,
+                               frame.colour = "black",
+                               ticks.colour = "black",
+                               label.position = "right",
+                               label.theme = element_text(size = 8),
+                               title = "Final\nCoral\nCover",
+                               title.theme = element_text(size = 11))) +
+  facet_rep_grid(iT_label ~ iC_label) +
+  theme(strip.text.x = element_text(size = 11))
+
+dev.off()
+
+```
+
+
+
+
+
+# GRAZER-DOMINATED SCENARIO
+
+# Grazer-Dominated ASS Sensitivity Analyses 4
+## Expansion of turf and macroalgae (betaT and betaM)
+
+```{r}
+
+# Step 1 - Define Time Sequence and Input Ranges
+
+# Time sequence for the model
+P2_tseq <- seq(0, 1000, by = 0.1)
+
+# Coral cover and fishing pressure combinations
+f_values <- seq(0, 1, by = 0.02)
+coral_initials <- seq(0, 0.85, 0.02)
+
+# Grid of initial coral and fishing pressure
+# high_browsers_1 <- expand.grid(Initial_Coral = coral_initials, Fishing_Pressure = f_values)
+high_grazers_1 <- expand.grid(Initial_Coral = coral_initials, Fishing_Pressure = f_values)
+
+
+
+# Step 2 - Prepare Parameter Combinations & Batching
+
+# Create all (betaT, betaM) combinations
+betaT_values <- seq(0.3, 0.9, by=0.1)
+betaM_values <- seq(0.3, 0.9, by=0.1)
+
+beta_initials <- expand.grid(betaT = betaT_values, betaM = betaM_values)
+
+
+# Filter to keep rows where the betaT values are greater than betaM values
+beta_initials <- beta_initials %>% 
+  filter(betaT >= betaM)
+
+param_grid <- beta_initials
+
+
+# Define batch size and split param_grid
+batch_size <- 2  # Adjust based on your machine
+n_batches <- ceiling(nrow(param_grid) / batch_size)
+
+# Create list of parameter batches
+param_batches <- split(param_grid, rep(1:n_batches, each = batch_size, length.out = nrow(param_grid)))
+
+
+
+# Step 3 - Define the Model Run Function
+run_model <- function(initial_coral, fishing_pressure, betaT, betaM) {
+  C0 <- initial_coral
+  B0 <- 0.15
+  R0 <- 0.15
+  G0 <- 0.6
+  # B0 <- 0.6
+  # R0 <- 0.15
+  # G0 <- 0.15
+  S0 <- 0.15
+  M0 <- (1 - C0 - S0) / 2
+  T0 <- (1 - C0 - S0) / 2
+
+  # Update the parameters — modify these indices if needed
+  hh_pars_mod <- hh_pars
+  hh_pars_mod[2] <- betaT  # set the betaT values
+  hh_pars_mod[3] <- betaM  # set the betaM values
+  hh_pars_mod[16] <- fishing_pressure  # Fishing pressure
+
+  # Run model
+  zz_output <- lsoda(c(Grazers = G0, Generalists = R0, Browsers = B0,
+                       Coral = C0, Turf = T0, Macroalgae = M0),
+                     P2_tseq, P2_Model, hh_pars_mod)
+
+  final_coral <- tail(as.data.frame(zz_output)$Coral, 1)
+  return(final_coral)
+}
+
+
+
+# Step 4 - Run the batches
+# Create progress bar
+pb <- progress_bar$new(
+  format = "Processing batch :current/:total [:bar] :percent in :elapsed ETA: :eta",
+  total = n_batches,
+  clear = FALSE,
+  width = 60
+)
+
+
+
+results_all <- list()
+
+for (i in seq_along(param_batches)) {
+  pb$tick()  # Update progress bar
+  
+  batch <- param_batches[[i]]
+  
+  # Inner progress bar for (betaT, betaM) combos in this batch
+  inner_pb <- progress_bar$new(
+    format = "  betaT/betaM combo :current/:total [:bar] :percent in :elapsed ETA: :eta",
+    total = nrow(batch),
+    clear = FALSE,
+    width = 60
+  )
+  
+  
+  # use map2_dfr to directly bind all the results into a single data frame
+  batch_results <- map2_dfr(batch$betaT, batch$betaM, function(betaT_val, betaM_val) {
+    inner_pb$tick()
+    high_grazers_1 %>%
+      mutate(Final_Coral = pmap_dbl(list(Initial_Coral, Fishing_Pressure),
+                                    ~run_model(..1, ..2, betaT_val, betaM_val)),
+             betaT = betaT_val,
+             betaM = betaM_val)
+  })
+  
+  results_all[[i]] <- batch_results
+  
+  # Save to output/analyses/supplement2/
+  write.csv(batch_results,
+            file = file.path("../output", "analyses", "supplement2", paste0("grazers_betaT_betaM_results_batch_", i, ".csv")),
+            row.names = FALSE)
+}
+
+
+
+
+# Step 5 - Combine Final Results
+grazers_betaT_betaM_all <- bind_rows(results_all)
+
+
+
+```
+
+# Write simulation results to .csv file
+
+```{r}
+# export complete simulation results to .csv file
+
+write_csv(grazers_betaT_betaM_all, "../output/analyses/supplement2/grazers_betaT_betaM_results_all_batches.csv")
+
+```
+
+
+# Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+grazers_betaT_betaM_all <- read_csv(file = "../../output/analyses/supplement2/grazers_betaT_betaM_results_all_batches")
+
+```
+
+
+# Plotting Results
+
+```{r}
+
+final_results <- grazers_betaT_betaM_all %>%
+  mutate(
+    betaT_label = paste0("betaT = ", betaT),
+    betaM_label = paste0("betaM = ", betaM)
+  )
+
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Create PDF
+pdf("../output/figures/fig_S26_grazers_betaTbetaM_v1.pdf", width = 12, height = 10)
+
+ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  theme_classic(base_size=14,base_family = "Times") + 
+  theme(axis.title=element_text(size=16,face="bold")) +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_x_continuous("Fishing Pressure",
+                     expand = c(0, 0),
+                     breaks = c(0,0.25,0.5,0.75,1),
+                     labels = c(0,0.25,0.5,0.75,1)) +
+  scale_y_continuous("Initial Coral Cover",
+                     expand = c(0, 0),
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  guides(fill = guide_colorbar(title.position = "top",
+                               title.hjust = 0.5,
+                               label.hjust = 0.5,
+                               barheight = unit(6, "lines"),
+                               barwidth = unit(1, "lines"),
+                               draw.ulim = FALSE,
+                               draw.llim = FALSE,
+                               frame.colour = "black",
+                               ticks.colour = "black",
+                               label.position = "right",
+                               label.theme = element_text(size = 8),
+                               title = "Final\nCoral\nCover",
+                               title.theme = element_text(size = 11))) +
+  facet_rep_grid(betaT_label ~ betaM_label) +
+  theme(strip.text.x = element_text(size = 11))
+
+dev.off()
+
+```
+
+
+
+
+
+# GRAZER-DOMINATED SCENARIO
+
+
+# Grazer-Dominated ASS Sensitivity Analyses 5
+## transition probability of turf to macroalgae (gamma values) versus initial turf cover
+
+
+```{r}
+
+# Step 1 - Define Time Sequence and Input Ranges
+
+# Time sequence for the model
+P2_tseq <- seq(0, 1000, by = 0.1)
+
+# Coral cover and fishing pressure combinations
+f_values <- seq(0, 1, by = 0.02)
+coral_initials <- seq(0, 0.85, 0.02)
+
+# Grid of initial coral and fishing pressure
+# high_browsers_1 <- expand.grid(Initial_Coral = coral_initials, Fishing_Pressure = f_values)
+high_grazers_1 <- expand.grid(Initial_Coral = coral_initials, Fishing_Pressure = f_values)
+
+
+
+# Step 2 - Prepare Parameter Combinations & Batching
+
+
+# Create all parameter combinations (not necessary for gamma)
+# betaT_values <- seq(0.3, 0.9, by=0.1)
+# betaM_values <- seq(0.3, 0.9, by=0.1)
+gamma_values <- seq(0, 0.6, by=0.05)
+
+gamma_initials <- expand.grid(gamma = gamma_values)
+
+
+param_grid <- gamma_initials
+
+
+# Define batch size and split param_grid
+batch_size <- 2  # Adjust based on your machine
+n_batches <- ceiling(nrow(param_grid) / batch_size)
+
+# Create list of parameter batches
+param_batches <- split(param_grid, rep(1:n_batches, each = batch_size, length.out = nrow(param_grid)))
+
+
+
+# Step 3 - Define the Model Run Function
+run_model <- function(initial_coral, fishing_pressure, gamma) {
+  C0 <- initial_coral
+  B0 <- 0.15
+  R0 <- 0.15
+  G0 <- 0.6
+  # B0 <- 0.6
+  # R0 <- 0.15
+  # G0 <- 0.15
+  S0 <- 0.15
+  M0 <- (1 - C0 - S0) / 2
+  T0 <- (1 - C0 - S0) / 2
+
+  # Update the parameters — modify these indices if needed
+  hh_pars_mod <- hh_pars
+  hh_pars_mod[16] <- fishing_pressure  # Fishing pressure
+  hh_pars_mod[17] <- gamma  # set the gamma values
+
+  # Run model
+  zz_output <- lsoda(c(Grazers = G0, Generalists = R0, Browsers = B0,
+                       Coral = C0, Turf = T0, Macroalgae = M0),
+                     P2_tseq, P2_Model, hh_pars_mod)
+
+  final_coral <- tail(as.data.frame(zz_output)$Coral, 1)
+  return(final_coral)
+}
+
+
+
+# Step 4 - Run the batches
+# Create progress bar
+pb <- progress_bar$new(
+  format = "Processing batch :current/:total [:bar] :percent in :elapsed ETA: :eta",
+  total = n_batches,
+  clear = FALSE,
+  width = 60
+)
+
+
+
+results_all <- list()
+
+for (i in seq_along(param_batches)) {
+  pb$tick()  # Update progress bar
+  
+  batch <- param_batches[[i]]
+  
+  # Inner progress bar for gamma values in this batch
+  inner_pb <- progress_bar$new(
+    format = "  gamma :current/:total [:bar] :percent in :elapsed ETA: :eta",
+    total = nrow(batch),
+    clear = FALSE,
+    width = 60
+  )
+  
+  
+  # use map2_dfr to directly bind all the results into a single data frame
+  batch_results <- map_dfr(batch$gamma, function(gamma_val) {
+    inner_pb$tick()
+    high_grazers_1 %>%
+      mutate(Final_Coral = pmap_dbl(list(Initial_Coral, Fishing_Pressure),
+                                    ~run_model(..1, ..2, gamma_val)),
+             gamma = gamma_val)
+  })
+  
+  results_all[[i]] <- batch_results
+  
+  # Save to output/analyses/supplement2/
+  write.csv(batch_results,
+            file = file.path("../output", "analyses", "supplement2", paste0("grazers_gamma_results_batch_", i, ".csv")),
+            row.names = FALSE)
+}
+
+
+
+
+# Step 5 - Combine Final Results
+grazers_gamma_all <- bind_rows(results_all)
+
+
+
+```
+
+# Write simulation results to .csv file
+
+```{r}
+# export complete simulation results to .csv file
+
+write_csv(grazers_gamma_all, "../output/analyses/supplement2/grazers_gamma_results_all_batches.csv")
+
+```
+
+
+# Read in .csv file produced from above code (to avoid having to rerun analyses)
+```{r}
+
+grazers_gamma_all <- read_csv(file = "../../output/analyses/supplement2/grazers_gamma_results_all_batches")
+
+```
+
+
+# Plotting Results
+
+```{r}
+
+final_results <- grazers_gamma_all %>%
+  mutate(
+    gamma_label = paste0("gamma = ", gamma)
+  )
+
+
+# Define the custom color scale
+custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", "#F9879E", "#F86696", "#F8468D", "#f20089", "#e500a4", "#db00b6", "#b5179e", "#7209b7"))
+
+
+# Create PDF
+pdf("../output/figures/fig_S28_grazers_gamma_v1.pdf", width = 12, height = 10)
+
+ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
+  geom_tile(aes(fill = Final_Coral)) +
+  theme_classic(base_size=14,base_family = "Times") + 
+  theme(axis.title=element_text(size=16,face="bold")) +
+  scale_fill_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_colour_gradientn(colors = custom_colors(50), limits=c(0,0.8)) +
+  scale_x_continuous("Fishing Pressure",
+                     expand = c(0, 0),
+                     breaks = c(0,0.25,0.5,0.75,1),
+                     labels = c(0,0.25,0.5,0.75,1)) +
+  scale_y_continuous("Initial Coral Cover",
+                     expand = c(0, 0),
+                     breaks = c(0,0.2,0.4,0.6,0.8),
+                     labels = c(0,0.2,0.4,0.6,0.8)) +
+  guides(fill = guide_colorbar(title.position = "top",
+                               title.hjust = 0.5,
+                               label.hjust = 0.5,
+                               barheight = unit(6, "lines"),
+                               barwidth = unit(1, "lines"),
+                               draw.ulim = FALSE,
+                               draw.llim = FALSE,
+                               frame.colour = "black",
+                               ticks.colour = "black",
+                               label.position = "right",
+                               label.theme = element_text(size = 8),
+                               title = "Final\nCoral\nCover",
+                               title.theme = element_text(size = 11))) +
+  facet_rep_wrap(~gamma_label, ncol = 3) +
+  theme(strip.text.x = element_text(size = 11))
+
+dev.off()
+
+```
+
+
+
