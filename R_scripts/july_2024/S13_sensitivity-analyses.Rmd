@@ -409,17 +409,17 @@ levels(alpha_all$Id)
 
 
 # Create the plot
-pdf("../../output/figures/fig_S13_v4_circles.pdf", width = 9, height = 12)
+pdf("../../output/figures/fig_S13_aTaM_v5_circles.pdf", width = 9, height = 12)
 
 ggplot(data = alpha_all, aes(alphaT, alphaM)) +
   geom_tile(aes(fill = Final_Coral)) +
-  scale_x_continuous("alphaT - Turf effect on coral",
+  scale_x_continuous("aT - Turf effect on coral",
                      # expand = c(0,0),                     # remove padding between axis line and data
                      breaks = c(0, 0.3, 0.6, 0.9),
                      labels = c(0,0.3,0.6,0.9)) +
                      # breaks = c(0,0.2,0.4,0.6,0.8),
                      # labels = c(0,0.2,0.4,0.6,0.8)) +          
-  scale_y_continuous("alphaM - Macroalgal effect on coral",
+  scale_y_continuous("aM - Macroalgal effect on coral",
                      # expand = c(0,0),                     # remove padding between axis line and data
                      breaks = c(0, 0.3, 0.6, 0.9),
                      labels = c(0,0.3,0.6,0.9)) +      
@@ -1942,17 +1942,18 @@ levels(beta_all$Id)
 
 # Create the plot
 # pdf("../../output/figures/fig_S18_circles.pdf", width = 9, height = 12)
-pdf("../../output/figures/fig_S18_v2_circles.pdf", width = 9, height = 12)
+# pdf("../../output/figures/fig_S18_v2_circles.pdf", width = 9, height = 12)
+pdf("../../output/figures/fig_S18_bTbM_v3_circles.pdf", width = 9, height = 12)
 
 ggplot(data = beta_all, aes(betaT, betaM)) +
   geom_tile(aes(fill = Final_Coral)) +
-  scale_x_continuous("betaT - Expansion of Turf",
+  scale_x_continuous("bT - Expansion of Turf",
                      # expand = c(0,0),                     # remove padding between axis line and data
                      breaks = c(0, 0.3, 0.6, 0.9),
                      labels = c(0,0.3,0.6,0.9)) +
                      # breaks = c(0,0.2,0.4,0.6,0.8),
                      # labels = c(0,0.2,0.4,0.6,0.8)) +          
-  scale_y_continuous("betaM - Expansion of Macroalgae",
+  scale_y_continuous("bM - Expansion of Macroalgae",
                      # expand = c(0,0),                     # remove padding between axis line and data
                      breaks = c(0, 0.3, 0.6, 0.9),
                      labels = c(0,0.3,0.6,0.9)) +      

@@ -171,7 +171,7 @@ for (i in seq_along(param_batches)) {
 
 
 # Step 5 - Combine Final Results
-gT_gM_all <- bind_rows(results_all)
+browsers_gT_gM_all <- bind_rows(results_all)
 
 # # Optional: write the full result
 # write.csv(final_results, "model_results_all_batches.csv", row.names = FALSE)
@@ -184,7 +184,8 @@ gT_gM_all <- bind_rows(results_all)
 ```{r}
 # export complete simulation results to .csv file
 
-write_csv(final_results, "../output/analyses/supplement2/gT_gM_results_all_batches.csv")
+# write_csv(final_results, "../output/analyses/supplement2/gT_gM_results_all_batches.csv")
+write_csv(final_results, "../output/analyses/supplement2/browser_gT_gM_results_all_batches.csv")
 
 ```
 
@@ -192,7 +193,7 @@ write_csv(final_results, "../output/analyses/supplement2/gT_gM_results_all_batch
 # Read in .csv file produced from above code (to avoid having to rerun analyses)
 ```{r}
 
-gT_gM_all <- read_csv(file = "../../output/analyses/supplement2/gT_gM_results_all_batches")
+browsers_gT_gM_all <- read_csv(file = "../../output/analyses/supplement2/supplement2/gT_gM_results_all_batches.csv")
 
 ```
 
@@ -201,7 +202,7 @@ gT_gM_all <- read_csv(file = "../../output/analyses/supplement2/gT_gM_results_al
 
 ```{r}
 
-final_results <- gT_gM_all %>%
+final_results <- browsers_gT_gM_all %>%
   mutate(
     gt_label = paste0("gT = ", gt),
     gm_label = paste0("gM = ", gm)
@@ -371,7 +372,7 @@ for (i in seq_along(param_batches)) {
 
 
 # Step 5 - Combine Final Results
-alphaT_alphaM_all <- bind_rows(results_all)
+browsers_alphaT_alphaM_all <- bind_rows(results_all)
 
 
 
@@ -382,7 +383,8 @@ alphaT_alphaM_all <- bind_rows(results_all)
 ```{r}
 # export complete simulation results to .csv file
 
-write_csv(alphaT_alphaM_all, "../output/analyses/supplement2/alphaT_alphaM_results_all_batches.csv")
+# write_csv(browsers_alphaT_alphaM_all, "../output/analyses/supplement2/supplement2/alphaT_alphaM_results_all_batches.csv")
+write_csv(browsers_alphaT_alphaM_all, "../output/analyses/supplement2/supplement2/browsers_alphaT_alphaM_results_all_batches.csv")
 
 ```
 
@@ -390,7 +392,8 @@ write_csv(alphaT_alphaM_all, "../output/analyses/supplement2/alphaT_alphaM_resul
 # Read in .csv file produced from above code (to avoid having to rerun analyses)
 ```{r}
 
-alphaT_alphaM_all <- read_csv(file = "../../output/analyses/supplement2/alphaT_alphaM_results_all_batches")
+browsers_alphaT_alphaM_all <- read_csv(file = "../../output/analyses/supplement2/supplement2/alphaT_alphaM_results_all_batches.csv")
+
 
 ```
 
@@ -399,10 +402,10 @@ alphaT_alphaM_all <- read_csv(file = "../../output/analyses/supplement2/alphaT_a
 
 ```{r}
 
-final_results <- alphaT_alphaM_all %>%
+final_results <- browsers_alphaT_alphaM_all %>%
   mutate(
-    alphaT_label = paste0("alphaT = ", alphaT),
-    alphaM_label = paste0("alphaM = ", alphaM)
+    alphaT_label = paste0("aT = ", alphaT),
+    alphaM_label = paste0("aM = ", alphaM)
   )
 
 
@@ -411,7 +414,7 @@ custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", 
 
 
 # Create PDF
-pdf("../output/figures/fig_S20_v1.pdf", width = 9, height = 12)
+pdf("../../output/analyses/supplement2/fig_S20_browsers_aTaM_v2.pdf", width = 12, height = 10)
 
 ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
   geom_tile(aes(fill = Final_Coral)) +
@@ -789,7 +792,7 @@ write_csv(browsers_betaT_betaM_all, "../output/analyses/supplement2/browsers_bet
 # Read in .csv file produced from above code (to avoid having to rerun analyses)
 ```{r}
 
-browsers_betaT_betaM_all <- read_csv(file = "../../output/analyses/supplement2/browsers_betaT_betaM_results_all_batches")
+browsers_betaT_betaM_all <- read_csv(file = "../../output/analyses/supplement2/supplement2/browsers_betaT_betaM_results_all_batches.csv")
 
 ```
 
@@ -800,8 +803,8 @@ browsers_betaT_betaM_all <- read_csv(file = "../../output/analyses/supplement2/b
 
 final_results <- browsers_betaT_betaM_all %>%
   mutate(
-    betaT_label = paste0("betaT = ", betaT),
-    betaM_label = paste0("betaM = ", betaM)
+    betaT_label = paste0("bT = ", betaT),
+    betaM_label = paste0("bM = ", betaM)
   )
 
 
@@ -810,7 +813,7 @@ custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", 
 
 
 # Create PDF
-pdf("../output/figures/fig_S25_browsers_betaTbetaM_v1.pdf", width = 12, height = 10)
+pdf("../../output/analyses/supplement2/fig_S25_browsers_bTbM_v2.pdf", width = 12, height = 10)
 
 ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
   geom_tile(aes(fill = Final_Coral)) +
@@ -988,7 +991,7 @@ write_csv(browsers_gamma_all, "../output/analyses/supplement2/browsers_gamma_res
 # Read in .csv file produced from above code (to avoid having to rerun analyses)
 ```{r}
 
-browsers_gamma_all <- read_csv(file = "../../output/analyses/supplement2/browsers_gamma_results_all_batches")
+browsers_gamma_all <- read_csv(file = "../../output/analyses/supplement2/supplement2/browsers_gamma_results_all_batches.csv")
 
 ```
 
@@ -1008,7 +1011,7 @@ custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", 
 
 
 # Create PDF
-pdf("../output/figures/fig_S27_browsers_gamma_v1.pdf", width = 12, height = 10)
+pdf("../../output/analyses/supplement2/fig_S27_browsers_gamma_v1.pdf", width = 12, height = 10)
 
 ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
   geom_tile(aes(fill = Final_Coral)) +

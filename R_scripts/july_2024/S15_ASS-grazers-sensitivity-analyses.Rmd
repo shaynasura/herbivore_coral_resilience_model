@@ -212,7 +212,7 @@ write_csv(grazers_alphaT_alphaM_all, "../output/analyses/supplement2/grazers_alp
 # Read in .csv file produced from above code (to avoid having to rerun analyses)
 ```{r}
 
-grazers_alphaT_alphaM_all <- read_csv(file = "../../output/analyses/supplement2/grazers_alphaT_alphaM_results_all_batches")
+grazers_alphaT_alphaM_all <- read_csv(file = "../../output/analyses/supplement2/supplement2/grazers_alphaT_alphaM_results_all_batches.csv")
 
 ```
 
@@ -223,8 +223,8 @@ grazers_alphaT_alphaM_all <- read_csv(file = "../../output/analyses/supplement2/
 
 final_results <- grazers_alphaT_alphaM_all %>%
   mutate(
-    alphaT_label = paste0("alphaT = ", alphaT),
-    alphaM_label = paste0("alphaM = ", alphaM)
+    alphaT_label = paste0("aT = ", alphaT),
+    alphaM_label = paste0("aM = ", alphaM)
   )
 
 
@@ -233,7 +233,7 @@ custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", 
 
 
 # Create PDF
-pdf("../output/figures/fig_S21_grazersdom_alphaTalphaM_v1.pdf", width = 12, height = 10)
+pdf("../../output/analyses/supplement2/fig_S21_grazers_aTaM_v2.pdf", width = 12, height = 10)
 
 ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
   geom_tile(aes(fill = Final_Coral)) +
@@ -821,7 +821,7 @@ write_csv(grazers_betaT_betaM_all, "../output/analyses/supplement2/grazers_betaT
 # Read in .csv file produced from above code (to avoid having to rerun analyses)
 ```{r}
 
-grazers_betaT_betaM_all <- read_csv(file = "../../output/analyses/supplement2/grazers_betaT_betaM_results_all_batches")
+grazers_betaT_betaM_all <- read_csv(file = "../../output/analyses/supplement2/supplement2/grazers_betaT_betaM_results_all_batches.csv")
 
 ```
 
@@ -832,8 +832,8 @@ grazers_betaT_betaM_all <- read_csv(file = "../../output/analyses/supplement2/gr
 
 final_results <- grazers_betaT_betaM_all %>%
   mutate(
-    betaT_label = paste0("betaT = ", betaT),
-    betaM_label = paste0("betaM = ", betaM)
+    betaT_label = paste0("bT = ", betaT),
+    betaM_label = paste0("bM = ", betaM)
   )
 
 
@@ -842,7 +842,7 @@ custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", 
 
 
 # Create PDF
-pdf("../output/figures/fig_S26_grazers_betaTbetaM_v1.pdf", width = 12, height = 10)
+pdf("../../output/analyses/supplement2/fig_S26_grazers_bTbM_v2.pdf", width = 12, height = 10)
 
 ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
   geom_tile(aes(fill = Final_Coral)) +
