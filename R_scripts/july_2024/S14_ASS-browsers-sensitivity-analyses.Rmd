@@ -1,5 +1,5 @@
 ---
-title: "S14_ASS-sensitivity-analyses"
+title: "S14_ASS-browsers-sensitivity-analyses"
 author: "Shayna A. Sura"
 date: "2025-06-15"
 output: pdf_document
@@ -194,6 +194,7 @@ write_csv(final_results, "../output/analyses/supplement2/browser_gT_gM_results_a
 ```{r}
 
 browsers_gT_gM_all <- read_csv(file = "../../output/analyses/supplement2/supplement2/gT_gM_results_all_batches.csv")
+# browsers_gT_gM_all <- read_csv(file = "../../output/analyses/supplement2/supplement2/browser_gT_gM_results_all_batches.csv")
 
 ```
 
@@ -214,7 +215,7 @@ custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", 
 
 
 # Create PDF
-pdf("../output/figures/fig_S19_v1.pdf", width = 12, height = 10)
+pdf("../output/figures/fig_S19_browsers_gTgM_v1.pdf", width = 12, height = 10)
 
 ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
   geom_tile(aes(fill = Final_Coral)) +
@@ -393,6 +394,7 @@ write_csv(browsers_alphaT_alphaM_all, "../output/analyses/supplement2/supplement
 ```{r}
 
 browsers_alphaT_alphaM_all <- read_csv(file = "../../output/analyses/supplement2/supplement2/alphaT_alphaM_results_all_batches.csv")
+# browsers_alphaT_alphaM_all <- read_csv(file = "../../output/analyses/supplement2/supplement2/browsers_alphaT_alphaM_results_all_batches.csv")
 
 
 ```
@@ -591,7 +593,7 @@ write_csv(browsers_iT_iC_all, "../output/analyses/supplement2/browsers_iT_iC_res
 # Read in .csv file produced from above code (to avoid having to rerun analyses)
 ```{r}
 
-browsers_iT_iC_all <- read_csv(file = "../../output/analyses/supplement2/browsers_iT_iC_results_all_batches")
+browsers_iT_iC_all <- read_csv(file = "../../output/analyses/supplement2/browsers_iT_iC_results_all_batches.csv")
 
 ```
 

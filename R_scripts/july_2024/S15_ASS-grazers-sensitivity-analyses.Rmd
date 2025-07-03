@@ -408,7 +408,7 @@ write_csv(grazers_gT_gM_all, "../output/analyses/supplement2/grazers_gT_gM_resul
 # Read in .csv file produced from above code (to avoid having to rerun analyses)
 ```{r}
 
-grazers_gT_gM_all <- read_csv(file = "../output/analyses/supplement2/grazers_gT_gM_results_all_batches")
+grazers_gT_gM_all <- read_csv(file = "../output/analyses/supplement2/grazers_gT_gM_results_all_batches.csv")
 
 ```
 
@@ -429,7 +429,7 @@ custom_colors <- colorRampPalette(c("#FCF0D1", "#FAE8B7", "#FAC8AF", "#F9A7A6", 
 
 
 # Create PDF
-pdf("../output/figures/fig_S22_grazersdom_gTgM_v1.pdf", width = 12, height = 10)
+pdf("../output/figures/fig_S22_grazers_gTgM_v1.pdf", width = 12, height = 10)
 
 ggplot(data = final_results, aes(Fishing_Pressure, Initial_Coral)) +
   geom_tile(aes(fill = Final_Coral)) +
@@ -615,7 +615,7 @@ write_csv(grazers_iT_iC_all, "../output/analyses/supplement2/grazers_iT_iC_resul
 # Read in .csv file produced from above code (to avoid having to rerun analyses)
 ```{r}
 
-grazers_iT_iC_all <- read_csv(file = "../../output/analyses/supplement2/grazers_iT_iC_results_all_batches")
+grazers_iT_iC_all <- read_csv(file = "../../output/analyses/supplement2/grazers_iT_iC_results_all_batches.csv")
 
 ```
 
@@ -1025,7 +1025,7 @@ write_csv(grazers_gamma_all, "../output/analyses/supplement2/grazers_gamma_resul
 # Read in .csv file produced from above code (to avoid having to rerun analyses)
 ```{r}
 
-grazers_gamma_all <- read_csv(file = "../../output/analyses/supplement2/grazers_gamma_results_all_batches")
+grazers_gamma_all <- read_csv(file = "../../output/analyses/supplement2/grazers_gamma_results_all_batches.csv")
 
 ```
 
